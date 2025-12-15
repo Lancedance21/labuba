@@ -2880,33 +2880,6 @@ ${musicBrainzResults && musicBrainzResults.length > 0 ? `\n🎯 НАЙДЕНО �
     window.quickSearch = quickSearch;
     </script>
 
-<style>
-    /* 1. Вытаскиваем окно настроек на самый верх */
-    #settingsModal {
-        z-index: 2147483647 !important; 
-    }
-
-    /* 2. Делаем кнопку и поле ввода "непробиваемыми" для пальца */
-    #saveApiKeyBtn, #googleApiKeyInput {
-        position: relative !important;
-        z-index: 2147483648 !important; 
-        pointer-events: auto !important;
-        cursor: pointer !important;
-        touch-action: manipulation !important; /* Убирает задержку нажатия */
-    }
-
-    /* 3. Предотвращение масштабирования на мобильных при фокусе */
-    #googleApiKeyInput {
-        font-size: 16px !important; /* Предотвращает зум на iOS */
-    }
-
-    @media (max-width: 768px) {
-        #googleApiKeyInput {
-            font-size: 16px !important;
-        }
-    }
-</style>
-
 <script>
     // Функция для принудительного показа модального окна
     function showApiKeyModal() {
@@ -2914,15 +2887,16 @@ ${musicBrainzResults && musicBrainzResults.length > 0 ? `\n🎯 НАЙДЕНО �
         if (modal) {
             console.log("🔧 Показываю окно ввода ключа...");
             modal.classList.remove('hidden');
-            // Принудительные стили для мобилок
-            modal.style.display = 'flex';
-            modal.style.zIndex = '2147483647';
-            modal.style.visibility = 'visible';
-            modal.style.opacity = '1';
+            modal.classList.add('show');
+            // Принудительные стили для мобилок, чтобы перекрыть всё
+            modal.style.cssText = 'display: flex !important; z-index: 2147483647 !important; visibility: visible !important; opacity: 1 !important; top: 0; left: 0; position: fixed; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.95);';
             return true;
         }
         return false;
     }
+
+    // Делаем доступной глобально
+    window.showApiKeyModal = showApiKeyModal;
 
     document.addEventListener('DOMContentLoaded', () => {
         console.log("📱 Инициализация управления ключами...");
@@ -2939,53 +2913,58 @@ ${musicBrainzResults && musicBrainzResults.length > 0 ? `\n🎯 НАЙДЕНО �
             if (!key || key.length < 20) {
                 if (apiInput) {
                     apiInput.style.borderColor = '#ef4444';
-                    // Вибрация на мобильном, если поддерживается
-                    if (navigator.vibrate) navigator.vibrate(200);
-                    setTimeout(() => apiInput.style.borderColor = '', 2000);
+                    apiInput.placeholder = "❌ Введите ключ!";
+                    setTimeout(() => {
+                        apiInput.style.borderColor = ''; 
+                        apiInput.placeholder = "AIzaSy..."; 
+                    }, 2000);
                 }
-                alert("❌ Ключ слишком короткий! Скопируйте его целиком.");
                 return false;
             }
 
             try {
                 console.log("🚀 Начинаю сохранение ключа...");
 
-                // 2. Сохраняем в глобальные переменные
+                // 2. Сохраняем глобально (на всякий случай)
                 window.currentApiKey = key;
                 window.GOOGLE_API_KEYS = [key];
 
-                // 3. 🔥 САМОЕ ВАЖНОЕ: Передаем ключ прямо в работающий AI Core
+                // 3. 🔥 ВОТ ЭТОГО НЕ ХВАТАЛО: ПЕРЕДАЕМ КЛЮЧ В МОЗГ ПРЯМО СЕЙЧАС 🔥
                 if (window.aiCore) {
-                    window.aiCore.apiKeys = [key];
-                    window.aiCore.googleAIKey = key;
-                    // Сбрасываем кэш моделей, чтобы он перепроверил доступ
-                    window.aiCore.availableModels = null; 
+                    window.aiCore.apiKeys = [key];       // Даем ключ списком
+                    window.aiCore.googleAIKey = key;     // Даем как основной
+                    window.aiCore.currentKeyIndex = 0;   // Сбрасываем индекс
+                    window.aiCore.availableModels = null; // Заставляем перепроверить модели
                     console.log("💉 Ключ успешно внедрен в AI Core!");
                 } else {
-                    console.warn("⚠️ AI Core еще не загружен, но ключ сохранен в глобальную область");
+                    console.warn("⚠️ AI Core еще не загружен, но ключ сохранен");
                 }
 
                 // 4. Обновляем статус на "Готов"
-                if (window.updateStatus) {
-                    window.updateStatus('✅ Готов к работе', 'active');
-                }
+                const statusBadge = document.getElementById('statusBadge');
+                const statusDot = document.getElementById('neuralStatus');
+                const statusText = document.getElementById('statusText');
+                
+                if (statusText) statusText.textContent = "Готов к работе";
+                if (statusDot) statusDot.style.background = "#10b981"; // Зеленый
 
-                // 5. Визуальный эффект успеха на кнопке
+                // 5. Визуальный эффект успеха
                 if (saveBtn) {
                     saveBtn.innerHTML = '<i class="fas fa-check"></i> <span>Готово!</span>';
                     saveBtn.style.background = '#10b981';
                 }
 
-                // 6. Скрываем окно
+                // 6. Скрываем окно через полсекунды
                 setTimeout(() => {
                     if (modal) {
                         modal.classList.add('hidden');
+                        modal.classList.remove('show');
                         modal.style.display = 'none';
                     }
-                    // Очищаем поле (для безопасности)
+                    // Чистим поле
                     if (apiInput) apiInput.value = '';
                     
-                    // Возвращаем кнопку в исходное состояние
+                    // Возвращаем кнопку
                     if (saveBtn) {
                         setTimeout(() => {
                             saveBtn.innerHTML = '<i class="fas fa-save"></i> <span>Сохранить ключ</span>';
@@ -2997,57 +2976,52 @@ ${musicBrainzResults && musicBrainzResults.length > 0 ? `\n🎯 НАЙДЕНО �
                 return true;
             } catch (e) {
                 console.error("Ошибка при сохранении:", e);
-                alert("Ошибка сохранения: " + e.message);
+                alert("Ошибка: " + e.message);
                 return false;
             }
         }
 
-        // === ОБРАБОТЧИКИ НАЖАТИЙ (Для мобилок и ПК) ===
+        // === ОБРАБОТЧИКИ НАЖАТИЙ ===
         if (saveBtn) {
-            // Обработка тача (палец)
+            // Для телефона (Touch)
             saveBtn.addEventListener('touchstart', (e) => {
-                e.preventDefault(); // Чтобы не было двойного клика
+                if (e.cancelable) e.preventDefault(); 
                 e.stopPropagation();
                 saveApiKey();
             }, { passive: false });
 
-            // Обработка клика (мышь)
+            // Для компа (Click)
             saveBtn.addEventListener('click', (e) => {
                 e.preventDefault();
                 saveApiKey();
             });
         }
 
+        // Обработка Enter в поле
         if (apiInput) {
-            // Сохранение по Enter
             apiInput.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') {
                     e.preventDefault();
-                    // Скрываем клавиатуру на мобильном
-                    apiInput.blur();
+                    apiInput.blur(); // Убираем клавиатуру
                     saveApiKey();
                 }
             });
-            
-            // Фикс фокуса на мобильном (чтобы клавиатура открывалась)
-            apiInput.addEventListener('touchstart', (e) => {
-                e.stopPropagation();
-                apiInput.focus();
-            }, { passive: false });
         }
 
         // === ПРОВЕРКА ПРИ ЗАПУСКЕ ===
-        // Если ключей нет (мы на GitHub), показываем окно
+        // Если ключей нет в конфиге (мы на GitHub), показываем окно
         setTimeout(() => {
             const hasConfigKeys = window.CONFIG && window.CONFIG.GOOGLE_AI && window.CONFIG.GOOGLE_AI.API_KEYS && window.CONFIG.GOOGLE_AI.API_KEYS.length > 0;
             
+            // Если ключей нет в файлах И мы еще не ввели их вручную
             if (!hasConfigKeys && !window.currentApiKey) {
                 showApiKeyModal();
             }
-        }, 1000); // Небольшая задержка, чтобы сайт успел прогрузиться
+        }, 1500); // Даем чуть больше времени на загрузку
     });
 </script>
 </body>
 </html>
+
 
 
