@@ -26,7 +26,6 @@ class MusicAICore {
     }
 
     getCurrentKey() {
-        // Если ключей несколько, берем текущий (можно добавить ротацию)
         if (this.apiKeys.length === 0) return null;
         return this.apiKeys[this.currentKeyIndex % this.apiKeys.length];
     }
@@ -86,11 +85,12 @@ class MusicAICore {
             const apiKey = rawKey ? rawKey.trim() : "";
 
             // 2. СПИСОК МОДЕЛЕЙ (Plan A -> Plan B -> Plan C)
-            // Если Flash не сработает, код сам попробует Pro
+            // Код будет пробовать их по очереди, пока одна не сработает
             const modelsToTry = [
                 'gemini-1.5-flash', 
                 'gemini-1.5-flash-001', 
-                'gemini-pro'
+                'gemini-pro',
+                'gemini-1.0-pro'
             ];
 
             let response;
@@ -120,9 +120,9 @@ class MusicAICore {
                         lastError = errData.error?.message || response.statusText;
                         console.warn(`⚠️ ${model} сбой: ${lastError}`);
                         
-                        // Если ошибка ключа (403), нет смысла менять модель, прерываем
+                        // Если ошибка доступа (403), нет смысла менять модель, прерываем
                         if (response.status === 403 || response.status === 400) {
-                             throw new Error("Ошибка доступа (Проверьте настройки ключа/Restrictions)");
+                             // Но иногда 403 бывает только на конкретную модель, так что лучше продолжить
                         }
                     }
                 } catch (e) {
@@ -132,7 +132,7 @@ class MusicAICore {
 
             // 4. ОБРАБОТКА РЕЗУЛЬТАТА
             if (!response || !response.ok) {
-                throw new Error(`Все модели недоступны. ${lastError}`);
+                throw new Error(`Все модели недоступны. Последняя ошибка: ${lastError}`);
             }
 
             const data = await response.json();
@@ -143,7 +143,7 @@ class MusicAICore {
             if (text && window.addMessageToChat) {
                 // Чистим звездочки программно
                 text = text.replace(/\*\*/g, ''); 
-                console.log(`✅ Ответ получен от: ${usedModel}`);
+                console.log(`✅ Успех! Сработала модель: ${usedModel}`);
                 window.addMessageToChat(text, 'ai');
             } else {
                 throw new Error("Пустой ответ от нейросети");
@@ -168,5 +168,5 @@ class MusicAICore {
 
 // Экспорт для глобального доступа
 window.MusicAICore = MusicAICore;
-// Пересоздаем объект, чтобы применились изменения
+// Пересоздаем объект
 window.aiCore = new MusicAICore();
