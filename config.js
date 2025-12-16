@@ -22,12 +22,21 @@ const CONFIG = {
             : (window.API_CONFIG && window.API_CONFIG.primaryKey)
                 ? [window.API_CONFIG.primaryKey]
                 : [],
+        
+        // --- ИСПРАВЛЕНИЕ ЗДЕСЬ ---
+        // Было: 'google/gemini-flash-1.5-8b:free' (Ошибка 404 - модель удалена)
+        // Стало: 'google/gemini-2.0-flash-lite-preview-02-05:free' (Самая быстрая и бесплатная сейчас)
         MODEL: (window.API_CONFIG && window.API_CONFIG.model) 
             ? window.API_CONFIG.model 
-            : 'google/gemini-flash-1.5-8b:free',
+            : 'google/gemini-2.0-flash-lite-preview-02-05:free', 
+
+        // --- ИСПРАВЛЕНИЕ ЗДЕСЬ ---
+        // Было: 'mistralai/mistral-7b-instruct:free' (Ошибка 429 - вечно перегружена)
+        // Стало: 'google/gemini-2.0-pro-exp-02-05:free' (Мощная резервная модель)
         FALLBACK_MODEL: (window.API_CONFIG && window.API_CONFIG.fallbackModel)
             ? window.API_CONFIG.fallbackModel
-            : 'mistralai/mistral-7b-instruct:free',
+            : 'google/gemini-2.0-pro-exp-02-05:free', 
+            
         ENDPOINT: 'https://openrouter.ai/api/v1/chat/completions'
     },
     
