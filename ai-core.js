@@ -4,54 +4,66 @@ console.log('🚀 AI Core загружен (версия 2.0)');
 
 class MusicAICore {
     constructor() {
-        // 1. ПРИОРИТЕТ: Сначала ключи из keys.js (через CONFIG), потом localStorage
-        // Ждем немного, чтобы CONFIG успел загрузиться
+        // 1. ПРИОРИТЕТ: Используем новую структуру API_CONFIG из keys.js
         let keysFromConfig = [];
-        if (window.CONFIG && window.CONFIG.GOOGLE_AI && window.CONFIG.GOOGLE_AI.API_KEYS) {
-            keysFromConfig = [...window.CONFIG.GOOGLE_AI.API_KEYS];
+        
+        // Проверяем новую структуру API_CONFIG
+        if (window.API_CONFIG) {
+            if (window.API_CONFIG.primaryKey) {
+                keysFromConfig.push(window.API_CONFIG.primaryKey);
+            }
+            if (window.API_CONFIG.fallbackKey) {
+                keysFromConfig.push(window.API_CONFIG.fallbackKey);
+            }
         }
         
-        // Если CONFIG еще не загружен, пробуем еще раз через SECRET_KEYS
-        if (keysFromConfig.length === 0 && window.SECRET_KEYS && window.SECRET_KEYS.GOOGLE_AI) {
-            keysFromConfig = [...window.SECRET_KEYS.GOOGLE_AI];
-            console.log('🔍 Ключи взяты напрямую из SECRET_KEYS');
+        // Если новая структура не найдена, пробуем старую через CONFIG
+        if (keysFromConfig.length === 0 && window.CONFIG && window.CONFIG.OPENROUTER && window.CONFIG.OPENROUTER.API_KEYS) {
+            keysFromConfig = [...window.CONFIG.OPENROUTER.API_KEYS];
         }
         
-        console.log('🔍 Проверка ключей:', {
+        console.log('🔍 Проверка ключей OpenRouter:', {
             keysFromConfig: keysFromConfig.length,
             keysFromConfigPreview: keysFromConfig.length > 0 ? keysFromConfig[0].substring(0, 15) + '...' : 'нет',
-            hasCONFIG: !!(window.CONFIG && window.CONFIG.GOOGLE_AI),
-            hasSECRET_KEYS: !!window.SECRET_KEYS,
-            CONFIG_KEYS: window.CONFIG?.GOOGLE_AI?.API_KEYS?.length || 0,
-            SECRET_KEYS_COUNT: window.SECRET_KEYS?.GOOGLE_AI?.length || 0
+            hasAPI_CONFIG: !!window.API_CONFIG,
+            hasCONFIG: !!(window.CONFIG && window.CONFIG.OPENROUTER)
         });
         
-        // ПРИНУДИТЕЛЬНО: Используем ключи из CONFIG/SECRET_KEYS в первую очередь
+        // ПРИНУДИТЕЛЬНО: Используем ключи из API_CONFIG/CONFIG в первую очередь
         // Если их нет, только тогда берем из localStorage
         if (keysFromConfig.length > 0) {
             this.apiKeys = keysFromConfig;
-            console.log('✅ Использую новые ключи из keys.js');
+            console.log('✅ Использую ключи OpenRouter из keys.js (API_CONFIG)');
         } else if (window.currentApiKey && typeof window.currentApiKey === 'string' && window.currentApiKey.length >= 20) {
             // Используем ключ из window.currentApiKey (введен в модальном окне)
             this.apiKeys = [window.currentApiKey];
-            console.log('✅ Использую ключ из window.currentApiKey (введен в этой сессии)');
+            console.log('✅ Использую ключ OpenRouter из window.currentApiKey (введен в этой сессии)');
         } else {
             // Ключей нет - требуется ввод через модальное окно
             this.apiKeys = [];
-            console.log('⚠️ Ключей нет - требуется ввод через модальное окно');
+            console.log('⚠️ Ключей OpenRouter нет - требуется ввод через модальное окно');
         }
         
-        console.log('🔑 Загружено ключей:', this.apiKeys.length);
+        console.log('🔑 Загружено ключей OpenRouter:', this.apiKeys.length);
         console.log('🔑 Первый ключ:', this.apiKeys.length > 0 ? this.apiKeys[0].substring(0, 20) + '...' : 'нет ключей');
-        console.log('🔑 Источник:', keysFromConfig.length > 0 ? 'keys.js (CONFIG/SECRET_KEYS)' : 'localStorage');
+        console.log('🔑 Источник:', keysFromConfig.length > 0 ? 'keys.js (API_CONFIG)' : 'localStorage');
 
         this.currentKeyIndex = 0;
-        this.googleAIKey = this.apiKeys.length > 0 ? this.apiKeys[this.currentKeyIndex] : null;
+        this.openRouterKey = this.apiKeys.length > 0 ? this.apiKeys[this.currentKeyIndex] : null;
         
-        // Модель из конфига
-        this.modelName = (window.CONFIG && window.CONFIG.GOOGLE_AI && window.CONFIG.GOOGLE_AI.MODEL)
-            ? window.CONFIG.GOOGLE_AI.MODEL
-            : 'gemini-2.5-flash';
+        // Модель из конфига OpenRouter (основная)
+        this.modelName = (window.CONFIG && window.CONFIG.OPENROUTER && window.CONFIG.OPENROUTER.MODEL)
+            ? window.CONFIG.OPENROUTER.MODEL
+            : (window.API_CONFIG && window.API_CONFIG.model)
+                ? window.API_CONFIG.model
+                : 'google/gemini-flash-1.5-8b:free';
+        
+        // Резервная модель
+        this.fallbackModel = (window.CONFIG && window.CONFIG.OPENROUTER && window.CONFIG.OPENROUTER.FALLBACK_MODEL)
+            ? window.CONFIG.OPENROUTER.FALLBACK_MODEL
+            : (window.API_CONFIG && window.API_CONFIG.fallbackModel)
+                ? window.API_CONFIG.fallbackModel
+                : 'mistralai/mistral-7b-instruct:free';
         
         this.isListening = false;
         this.recognition = null;
@@ -68,13 +80,13 @@ class MusicAICore {
         this.availableModels = null;
 
         // Логирование для отладки
-        console.log('🤖 AI Core: Адаптивный режим загружен.');
-        console.log('🔑 Количество API ключей:', this.apiKeys.length);
-        console.log('🌐 Endpoint:', window.CONFIG?.GOOGLE_AI?.ENDPOINT || 'по умолчанию');
+        console.log('🤖 AI Core: Адаптивный режим загружен (OpenRouter).');
+        console.log('🔑 Количество API ключей OpenRouter:', this.apiKeys.length);
+        console.log('🌐 Endpoint:', window.CONFIG?.OPENROUTER?.ENDPOINT || 'https://openrouter.ai/api/v1/chat/completions');
         console.log('🤖 Модель:', this.modelName);
         
         if (this.apiKeys.length === 0) {
-            console.warn('⚠️ ВНИМАНИЕ: API ключи не найдены! Добавьте ключи в keys.js или через настройки.');
+            console.warn('⚠️ ВНИМАНИЕ: API ключи OpenRouter не найдены! Добавьте ключи в keys.js или через настройки.');
         }
     }
     
@@ -82,8 +94,8 @@ class MusicAICore {
     getNextApiKey() {
         if (this.apiKeys.length === 0) return null;
         this.currentKeyIndex = (this.currentKeyIndex + 1) % this.apiKeys.length;
-        this.googleAIKey = this.apiKeys[this.currentKeyIndex];
-        return this.googleAIKey;
+        this.openRouterKey = this.apiKeys[this.currentKeyIndex];
+        return this.openRouterKey;
     }
 
     // ==================== НАСТРОЙКА ГОЛОСОВОГО ВВОДА ====================
@@ -130,12 +142,12 @@ class MusicAICore {
     }
 
     onVoiceInput(text) {
-        if (window.addMessageToChat) {
+            if (window.addMessageToChat) {
             window.addMessageToChat(text, 'user');
             // Передаем текущий выбранный тип поиска (если есть в глобальной переменной) или 'text'
             // В music-ai-assistant.html переменная называется currentSearchType
             const type = window.currentSearchType || 'text';
-            this.processWithGoogleAI(text, type);
+            this.processWithOpenRouter(text, type);
         }
     }
 
@@ -225,8 +237,8 @@ class MusicAICore {
         return [];
     }
 
-    // ==================== ГЛАВНЫЙ МОЗГ (GOOGLE AI) ====================
-    async processWithGoogleAI(userInput, searchType = 'text') {
+    // ==================== ГЛАВНЫЙ МОЗГ (OPENROUTER) ====================
+    async processWithOpenRouter(userInput, searchType = 'text') {
         let musicBrainzResults = null;
         // Проверка ключей
         if (!this.apiKeys || this.apiKeys.length === 0) {
@@ -236,11 +248,7 @@ class MusicAICore {
             return;
         }
         
-        // ВАЖНО: Получаем список доступных моделей ПЕРЕД попытками запросов
-        if (!this.availableModels || this.availableModels.length === 0) {
-            console.log('🔍 Получаю список доступных моделей...');
-            await this.fetchAvailableModels();
-        }
+        // OpenRouter не требует получения списка моделей заранее
 
         // Подбираем сообщение "думаю" в зависимости от типа
         let thinkingText = '🤔 Анализирую запрос...';
@@ -311,7 +319,8 @@ class MusicAICore {
         const baseRules = `
 ТВОИ ГЛАВНЫЕ ЗАПРЕТЫ И ПРАВИЛА:
 1. ЗАПРЕЩЕНО ИСПОЛЬЗОВАТЬ ЗВЕЗДОЧКИ (**) или жирный шрифт. Пиши только обычным текстом.
-2. ВОСПРИНИМАЙ ЗАПРОС ЦЕЛИКОМ. Ищи общий смысл и ассоциации.
+2. ЗАПРЕЩЕНО ИСПОЛЬЗОВАТЬ ЗАЧЕРКИВАНИЕ (~~текст~~, <s>, <del>). Всегда пиши обычным текстом без зачеркивания.
+3. ВОСПРИНИМАЙ ЗАПРОС ЦЕЛИКОМ. Ищи общий смысл и ассоциации.
 
 ЗАПРОС ПОЛЬЗОВАТЕЛЯ: "${userInput}"
 
@@ -336,132 +345,59 @@ ${musicBrainzResults ? `Подсказки из базы MusicBrainz: ${musicBra
         // Склеиваем промпт
         const finalPrompt = specializedInstruction + "\n\n" + baseRules;
 
-        // Выбор модели - ИСПОЛЬЗУЕМ ТОЛЬКО ДОСТУПНЫЕ МОДЕЛИ!
-        let modelsToTry;
-        
-        if (this.availableModels && this.availableModels.length > 0) {
-            // Приоритетный порядок моделей (БЕЗ "lite" - у них низкие лимиты!)
-            // Сначала пробуем модели с высокими лимитами
-            const priorityOrder = [
-                'gemini-2.5-flash',      // Высокий лимит
-                'gemini-2.5-pro',       // Высокий лимит
-                'gemini-2.0-flash',     // Высокий лимит
-                'gemini-2.0-flash-001', // Высокий лимит
-                'gemini-1.5-flash-latest',
-                'gemini-1.5-pro-latest',
-                'gemini-1.5-flash-002',
-                'gemini-1.5-pro-002',
-                'gemini-1.5-flash',
-                'gemini-1.5-pro'
-            ];
-            
-            // ВАЖНО: Полностью исключаем модели с "lite" из списка попыток
-            // У них очень низкие лимиты (всего 20 запросов), поэтому они быстро исчерпываются
-            const modelsWithoutLite = this.availableModels.filter(m => !m.includes('lite'));
-            const modelsWithLite = this.availableModels.filter(m => m.includes('lite'));
-            
-            console.log('📊 Доступные модели:', {
-                всего: this.availableModels.length,
-                без_lite: modelsWithoutLite.length,
-                с_lite: modelsWithLite.length,
-                модели_с_lite: modelsWithLite
-            });
-            
-            if (modelsWithoutLite.length === 0) {
-                console.error('❌ Нет доступных моделей без "lite"! Все модели имеют низкие лимиты.');
-                console.warn('⚠️ Это приведет к быстрому исчерпанию квоты. Рекомендуется использовать другой API ключ.');
-                // Только в крайнем случае используем модели с "lite", но с предупреждением
-                modelsToTry = modelsWithLite.sort();
-                console.warn('⚠️ Вынужденно используем модели с "lite" (низкие лимиты - 20 запросов!):', modelsToTry);
-            } else {
-                // Сортируем модели без "lite" по приоритету
-                const sortedAvailable = priorityOrder.filter(m => modelsWithoutLite.includes(m));
-                const restAvailable = modelsWithoutLite
-                    .filter(m => !priorityOrder.includes(m))
-                    .sort();
-                
-                // ВАЖНО: Используем ТОЛЬКО модели без "lite" (фильтруем еще раз на всякий случай)
-                modelsToTry = [...sortedAvailable, ...restAvailable].filter(m => {
-                    const hasLite = m.includes('lite');
-                    if (hasLite) {
-                        console.warn(`⚠️ Обнаружена модель с "lite" в списке: ${m} - пропускаю`);
-                    }
-                    return !hasLite;
-                });
-                
-                // ФИНАЛЬНАЯ ПРОВЕРКА: Убеждаемся, что в списке НЕТ моделей с "lite"
-                const finalCheck = modelsToTry.filter(m => !m.includes('lite'));
-                if (finalCheck.length !== modelsToTry.length) {
-                    console.error('❌ КРИТИЧЕСКАЯ ОШИБКА: В списке modelsToTry обнаружены модели с "lite"!');
-                    console.error('❌ Было моделей:', modelsToTry.length);
-                    console.error('❌ Модели с "lite":', modelsToTry.filter(m => m.includes('lite')));
-                    modelsToTry = finalCheck; // Принудительно оставляем только без "lite"
-                    console.log('✅ Исправлено: оставлены только модели БЕЗ "lite"');
-                }
-                
-                console.log('✅ Используем ТОЛЬКО модели БЕЗ "lite" (высокие лимиты):', modelsToTry);
-                console.log('🔍 Финальная проверка: модели с "lite" в списке?', modelsToTry.some(m => m.includes('lite')) ? 'ДА ❌ ОШИБКА!' : 'НЕТ ✅');
-                
-                if (modelsToTry.length === 0) {
-                    console.error('❌ Ошибка: после фильтрации не осталось моделей без "lite"!');
-                    modelsToTry = modelsWithoutLite.slice(0, 4).filter(m => !m.includes('lite')); // Берем первые 4 без "lite" еще раз фильтруем
-                }
-            }
-        } else {
-            // Если не удалось получить список, используем только самые популярные модели
-            console.warn('⚠️ Не удалось получить список моделей, используем стандартный набор');
-            modelsToTry = [
-                'gemini-2.5-flash',
-                'gemini-2.5-pro',
-                'gemini-2.0-flash',
-                'gemini-2.0-flash-001'
-            ];
-        }
-        
+        // Используем модель из конфига OpenRouter (с поддержкой fallback)
+        let modelToUse = this.modelName;
         let lastError = null;
-        let skipLiteModels = false; // Флаг для пропуска всех моделей с "lite"
-        let quotaFullyExceededGlobal = false; // Глобальный флаг полного исчерпания квоты
+        let useFallbackModel = false;
         
-        // Цикл попыток запроса
-        for (const model of modelsToTry) {
-            // Если квота полностью исчерпана, прекращаем все попытки
-            if (quotaFullyExceededGlobal) {
-                console.log('⚠️ Квота полностью исчерпана, прекращаю все попытки');
-                break;
+        // Пробуем все ключи по очереди, сначала с основной моделью, потом с резервной
+        const modelsToTry = [this.modelName, this.fallbackModel];
+        
+        for (let modelAttempt = 0; modelAttempt < modelsToTry.length; modelAttempt++) {
+            modelToUse = modelsToTry[modelAttempt];
+            useFallbackModel = modelAttempt > 0;
+            
+            if (useFallbackModel) {
+                console.log(`  🔄 Переключение на резервную модель: ${modelToUse}`);
             }
             
-            // Если установлен флаг пропуска "lite" моделей и текущая модель содержит "lite" - пропускаем
-            if (skipLiteModels && model.includes('lite')) {
-                console.log(`⏭️ Пропускаю модель ${model} (установлен флаг пропуска "lite" моделей)`);
-                continue;
-            }
-            
-            console.log(`🔄 Пробую модель: ${model}...`);
+            // Пробуем все ключи с текущей моделью
             for (let keyAttempt = 0; keyAttempt < this.apiKeys.length; keyAttempt++) {
+                const endpoint = (window.CONFIG && window.CONFIG.OPENROUTER && window.CONFIG.OPENROUTER.ENDPOINT)
+                    ? window.CONFIG.OPENROUTER.ENDPOINT
+                    : 'https://openrouter.ai/api/v1/chat/completions';
+                
+                const currentKey = this.apiKeys[(this.currentKeyIndex + keyAttempt) % this.apiKeys.length];
+                
+                console.log(`  📡 Запрос к OpenRouter (модель: ${modelToUse}, ключ ${keyAttempt + 1}/${this.apiKeys.length})...`);
+                
                 try {
-                    const endpoint = (window.CONFIG && window.CONFIG.GOOGLE_AI && window.CONFIG.GOOGLE_AI.ENDPOINT)
-                        ? window.CONFIG.GOOGLE_AI.ENDPOINT
-                        : 'https://generativelanguage.googleapis.com/v1/models';
-                    
-                    const currentKey = this.apiKeys[(this.currentKeyIndex + keyAttempt) % this.apiKeys.length];
-                    
-                    console.log(`  📡 Запрос к ${model} (ключ ${keyAttempt + 1}/${this.apiKeys.length})...`);
-                    
-                    const response = await fetch(
-                        `${endpoint}/${model}:generateContent?key=${currentKey}`,
-                        {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                contents: [{
-                                    parts: [{ text: finalPrompt }]
-                                }]
-                            })
-                        }
-                    );
+                    const response = await fetch(endpoint, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${currentKey}`,
+                            'HTTP-Referer': window.location.origin,
+                            'X-Title': 'Music AI Assistant'
+                        },
+                        body: JSON.stringify({
+                            model: modelToUse,
+                            messages: [
+                                {
+                                    role: 'system',
+                                    content: 'Ты музыкальный эксперт и ИИ-ассистент. Отвечай на русском языке. Помогай с поиском музыки, объясняй музыкальные термины, давай рекомендации.'
+                                },
+                                {
+                                    role: 'user',
+                                    content: finalPrompt
+                                }
+                            ],
+                            max_tokens: 2000,
+                            temperature: 0.7
+                        })
+                    });
 
                     if (!response.ok) {
-                        // Получаем детали ошибки из ответа
                         let errorDetails = `HTTP ${response.status}`;
                         let errorMessage = '';
                         let errorData = null;
@@ -475,111 +411,42 @@ ${musicBrainzResults ? `Подсказки из базы MusicBrainz: ${musicBra
                             errorDetails = `HTTP ${response.status}: ${response.statusText}`;
                         }
                         
-                        // Обработка ошибки квоты
-                        if (errorMessage.includes('quota') || 
-                            errorMessage.includes('Quota exceeded') ||
-                            errorMessage.includes('exceeded your current quota')) {
-                            
-                            // Проверяем, полностью ли исчерпана квота
-                            // Квота считается полностью исчерпанной, если:
-                            // 1. Есть "Quota exceeded" И
-                            // 2. В сообщении или деталях есть limit: 0
-                            const hasQuotaExceeded = errorMessage.includes('Quota exceeded') || 
-                                                    errorMessage.includes('exceeded your current quota');
-                            const hasLimitZero = errorMessage.includes('limit: 0') ||
-                                                errorMessage.match(/limit:\s*0[,\s]/i) !== null ||
-                                                (errorData?.error?.details && 
-                                                 errorData.error.details.some(d => 
-                                                     d.quotaLimit === 0 || 
-                                                     d.quotaLimit === '0' ||
-                                                     (typeof d.quotaLimit === 'string' && d.quotaLimit.includes('0'))
-                                                 ));
-                            const quotaFullyExceeded = hasQuotaExceeded && hasLimitZero;
-                            
-                            console.log('🔍 Проверка квоты:', {
-                                hasQuotaExceeded,
-                                hasLimitZero,
-                                quotaFullyExceeded,
-                                errorMessage: errorMessage.substring(0, 200)
-                            });
-                            
-                            if (quotaFullyExceeded) {
-                                console.error('⚠️ Квота полностью исчерпана для всех моделей! Останавливаю попытки.');
-                                // Устанавливаем глобальный флаг, чтобы прекратить все попытки
-                                quotaFullyExceededGlobal = true;
-                                // Сохраняем детали ошибки для последующей обработки
-                                lastError = new Error(`Квота полностью исчерпана: ${errorMessage}`);
-                                lastError.quotaFullyExceeded = true;
-                                lastError.errorData = errorData;
-                                lastError.originalErrorMessage = errorMessage;
-                                // Выходим из цикла по ключам
-                                break;
-                            }
-                            
-                            console.warn(`⚠️ Модель ${model} превысила квоту: ${errorMessage}`);
-                            
-                            // Если это модель с "lite", устанавливаем флаг пропуска всех "lite" моделей
-                            if (model.includes('lite')) {
-                                console.log('🔄 Устанавливаю флаг пропуска всех моделей с "lite" из-за низких лимитов');
-                                skipLiteModels = true;
-                                lastError = new Error(`Модель ${model} превысила квоту: ${errorMessage}`);
-                                // Выходим из цикла по ключам, чтобы перейти к следующей модели (без "lite")
-                                break;
-                            } else {
-                                // Если это не модель с "lite", просто пробуем следующую модель
-                                lastError = new Error(`Модель ${model} превысила квоту: ${errorMessage}`);
-                                break;
-                            }
-                        }
-                        
-                        // Если модель перегружена - сразу переходим к следующей модели
-                        if (errorMessage.includes('overloaded') || 
-                            errorMessage.includes('overload') ||
-                            errorMessage.includes('try again later')) {
-                            console.warn(`Модель ${model} перегружена: ${errorMessage}. Пробуем следующую модель...`);
-                            lastError = new Error(`Модель ${model} перегружена: ${errorMessage}`);
-                            break; // Переходим к следующей модели
-                        }
-                        
-                        // Если модель не найдена или не поддерживается - сразу переходим к следующей модели
-                        if (errorMessage.includes('not found') || 
-                            errorMessage.includes('not supported') || 
-                            errorMessage.includes('is not available')) {
-                            console.warn(`Модель ${model} недоступна: ${errorMessage}. Пробуем следующую модель...`);
-                            lastError = new Error(`Модель ${model} недоступна: ${errorMessage}`);
-                            break; // Переходим к следующей модели
-                        }
-                        
-                        lastError = new Error(`Ошибка API (${model}): ${errorDetails}`);
+                        lastError = new Error(`Ошибка OpenRouter API: ${errorDetails}`);
                         
                         // Если ошибка авторизации, пробуем следующий ключ
                         if (response.status === 401 || response.status === 403) {
-                            console.warn(`Ключ API недействителен для модели ${model}, пробуем следующий...`);
-                            continue;
+                            console.warn(`Ключ OpenRouter недействителен, пробуем следующий...`);
+                            if (keyAttempt < this.apiKeys.length - 1) continue;
+                            // Если все ключи перепробованы, пробуем следующую модель
+                            break;
                         }
                         
-                        // Для других ошибок пробуем следующую модель
+                        // Для других ошибок пробуем следующий ключ или модель
+                        if (keyAttempt < this.apiKeys.length - 1) continue;
+                        // Если все ключи перепробованы, пробуем следующую модель
                         break;
                     }
                     
                     const data = await response.json();
                     
-                    if (!data.candidates || !data.candidates[0].content) {
-                        lastError = new Error('Пустой ответ от Google AI (нет candidates)');
-                        continue;
+                    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+                        lastError = new Error('Пустой ответ от OpenRouter (нет choices)');
+                        if (keyAttempt < this.apiKeys.length - 1) continue;
+                        break;
                     }
                     
-                    const aiResponse = data.candidates[0].content.parts[0].text;
+                    const aiResponse = data.choices[0].message.content;
                     
                     if (!aiResponse) {
-                        lastError = new Error('Пустой ответ от Google AI (нет текста)');
-                        continue;
+                        lastError = new Error('Пустой ответ от OpenRouter (нет текста)');
+                        if (keyAttempt < this.apiKeys.length - 1) continue;
+                        break;
                     }
                     
-                    console.log(`✅ Ответ получен (Режим: ${searchType}, Модель: ${model})`);
+                    console.log(`✅ Ответ получен (Режим: ${searchType}, Модель: ${modelToUse}${useFallbackModel ? ' [резервная]' : ''})`);
                     
                     this.currentKeyIndex = (this.currentKeyIndex + keyAttempt) % this.apiKeys.length;
-                    this.googleAIKey = currentKey;
+                    this.openRouterKey = currentKey;
                     
                     if (this.currentThinkingMsgId && window.removeMessageFromChat) {
                         window.removeMessageFromChat(this.currentThinkingMsgId);
@@ -595,7 +462,7 @@ ${musicBrainzResults ? `Подсказки из базы MusicBrainz: ${musicBra
                     return;
                     
                 } catch (error) {
-                    console.warn(`Ошибка модели ${model} (ключ ${keyAttempt + 1}/${this.apiKeys.length}):`, error);
+                    console.warn(`Ошибка OpenRouter (модель: ${modelToUse}, ключ ${keyAttempt + 1}/${this.apiKeys.length}):`, error);
                     
                     // Определяем тип ошибки
                     if (error.name === 'TypeError' && error.message.includes('fetch')) {
@@ -607,14 +474,16 @@ ${musicBrainzResults ? `Подсказки из базы MusicBrainz: ${musicBra
                     }
                     
                     if (keyAttempt < this.apiKeys.length - 1) continue;
+                    // Если все ключи перепробованы, пробуем следующую модель
                     break;
                 }
             }
             
-            // Если квота полностью исчерпана, прекращаем попытки с другими моделями
-            if (quotaFullyExceededGlobal || (lastError && lastError.quotaFullyExceeded)) {
-                console.log('⚠️ Квота полностью исчерпана, прекращаю попытки с другими моделями');
-                break;
+            // Если дошли сюда, значит все ключи с текущей моделью не сработали
+            // Пробуем следующую модель (если есть)
+            if (modelAttempt < modelsToTry.length - 1) {
+                console.log(`  ⚠️ Модель ${modelToUse} не сработала, пробуем резервную...`);
+                continue;
             }
         }
         
@@ -744,7 +613,8 @@ ${musicBrainzResults ? `Подсказки из базы MusicBrainz: ${musicBra
         errorMessage += `\n**🔧 Отладка:**\n`;
         errorMessage += `• Откройте консоль браузера (F12) для деталей\n`;
         errorMessage += `• Проверьте настройки API в панели настроек\n`;
-        errorMessage += `• Попробовано моделей: ${modelsToTry.length}, ключей: ${this.apiKeys.length}\n`;
+        errorMessage += `• Используемая модель: ${modelToUse}\n`;
+        errorMessage += `• Попробовано ключей: ${this.apiKeys.length}\n`;
         
         // Добавляем список доступных моделей, если удалось получить
         if (availableModelsHint) {
@@ -794,7 +664,7 @@ ${musicBrainzResults ? `Подсказки из базы MusicBrainz: ${musicBra
         
         // Логируем ошибку в консоль для отладки
         console.error('❌ Ошибка AI Core:', lastError || 'Неизвестная ошибка');
-        console.error('Попробованные модели:', modelsToTry);
+        console.error('Используемая модель:', modelToUse);
         console.error('Количество ключей:', this.apiKeys.length);
     }
 
@@ -910,7 +780,7 @@ ${musicBrainzResults ? `Подсказки из базы MusicBrainz: ${musicBra
         `).join('');
     }
 
-    processQuery(text) { return this.processWithGoogleAI(text); }
+    processQuery(text) { return this.processWithOpenRouter(text, 'text'); }
     voiceSearch() { return this.startVoiceInput(); }
     playPreview(songTitle) { alert(`🎧 Играет: ${songTitle}`); }
 }
