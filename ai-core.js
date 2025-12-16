@@ -1,6 +1,6 @@
 // ai-core.js - АДАПТИВНОЕ ЯДРО (Разные режимы для разных кнопок)
-// ВЕРСИЯ: 2.3 - Добавлена защита от невалидных моделей из config.js
-console.log('🚀 AI Core загружен (версия 2.3)');
+// ВЕРСИЯ: 2.4 - Полная замена нерабочих моделей на Llama 3
+console.log('🚀 AI Core загружен (версия 2.4)');
 
 class MusicAICore {
     constructor() {
@@ -65,6 +65,7 @@ class MusicAICore {
         const brokenModels = [
             'google/gemini-flash-1.5-8b:free',      // Удалена (404)
             'google/gemini-2.0-pro-exp-02-05:free', // Невалидный ID (400)
+            'google/gemini-2.0-flash-thinking-exp:free', // Тоже отвалилась (400)
             'mistralai/mistral-7b-instruct:free'    // Часто перегружена (429)
         ];
 
@@ -72,11 +73,11 @@ class MusicAICore {
         // Если в конфиге "битая" модель, принудительно ставим рабочую
         this.modelName = (configModel && !brokenModels.includes(configModel))
             ? configModel
-            : 'google/gemini-2.0-flash-lite-preview-02-05:free'; // ✅ Самая надежная сейчас
+            : 'google/gemini-2.0-flash-lite-preview-02-05:free'; // ✅ Самая надежная из Gemini
         
         this.fallbackModel = (configFallback && !brokenModels.includes(configFallback))
             ? configFallback
-            : 'google/gemini-2.0-flash-thinking-exp:free'; // ✅ Рабочая альтернатива Pro
+            : 'meta-llama/llama-3.1-8b-instruct:free'; // ✅ Llama 3.1 - Железобетонная стабильность
         
         this.isListening = false;
         this.recognition = null;
