@@ -3,7 +3,9 @@ class OpenRouterAI {
     constructor(apiKey) {
         this.apiKey = apiKey || loadConfig('openrouter_key');
         this.baseUrl = 'https://openrouter.ai/api/v1/chat/completions';
-        this.model = 'google/gemini-flash-2.5'; // Бесплатная модель
+        this.model = (window.API_CONFIG && window.API_CONFIG.model) 
+            ? window.API_CONFIG.model 
+            : 'google/gemini-flash-1.5-8b:free';
     }
 
     async chat(message, history = []) {
