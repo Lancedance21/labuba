@@ -1881,6 +1881,7 @@
     }
 
    async function callPublicAI(message) {
+       if (window.currentApiKey) window.GOOGLE_API_KEYS = [window.currentApiKey];
     let musicBrainzResults = null;
         updateStatus('✅ Обработка запроса...', 'active');
         
@@ -3348,5 +3349,6 @@ ${musicBrainzResults && musicBrainzResults.length > 0 ? `\n🎯 НАЙДЕНО �
 </script>
 </body>
 </html>
+
 
 
