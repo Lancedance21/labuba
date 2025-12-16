@@ -1,6 +1,6 @@
 // ai-core.js - АДАПТИВНОЕ ЯДРО (Разные режимы для разных кнопок)
-// ВЕРСИЯ: 2.0 - Исправлена фильтрация моделей с "lite" и приоритет ключей из keys.js
-console.log('🚀 AI Core загружен (версия 2.0)');
+// ВЕРСИЯ: 2.1 - Исправлены hardcoded модели на рабочие Gemini 2.0
+console.log('🚀 AI Core загружен (версия 2.1)');
 
 class MusicAICore {
     constructor() {
@@ -51,19 +51,19 @@ class MusicAICore {
         this.currentKeyIndex = 0;
         this.openRouterKey = this.apiKeys.length > 0 ? this.apiKeys[this.currentKeyIndex] : null;
         
-        // Модель из конфига OpenRouter (основная)
+        // --- ИСПРАВЛЕНИЕ ЗДЕСЬ (Убрана старая модель flash-1.5-8b) ---
         this.modelName = (window.CONFIG && window.CONFIG.OPENROUTER && window.CONFIG.OPENROUTER.MODEL)
             ? window.CONFIG.OPENROUTER.MODEL
             : (window.API_CONFIG && window.API_CONFIG.model)
                 ? window.API_CONFIG.model
-                : 'google/gemini-flash-1.5-8b:free';
+                : 'google/gemini-2.0-flash-lite-preview-02-05:free'; // ✅ Новая быстрая модель
         
-        // Резервная модель
+        // --- ИСПРАВЛЕНИЕ ЗДЕСЬ (Убрана модель mistral) ---
         this.fallbackModel = (window.CONFIG && window.CONFIG.OPENROUTER && window.CONFIG.OPENROUTER.FALLBACK_MODEL)
             ? window.CONFIG.OPENROUTER.FALLBACK_MODEL
             : (window.API_CONFIG && window.API_CONFIG.fallbackModel)
                 ? window.API_CONFIG.fallbackModel
-                : 'mistralai/mistral-7b-instruct:free';
+                : 'google/gemini-2.0-pro-exp-02-05:free'; // ✅ Мощная Pro модель на замену
         
         this.isListening = false;
         this.recognition = null;
@@ -84,6 +84,7 @@ class MusicAICore {
         console.log('🔑 Количество API ключей OpenRouter:', this.apiKeys.length);
         console.log('🌐 Endpoint:', window.CONFIG?.OPENROUTER?.ENDPOINT || 'https://openrouter.ai/api/v1/chat/completions');
         console.log('🤖 Модель:', this.modelName);
+        console.log('🛡️ Резервная модель:', this.fallbackModel);
         
         if (this.apiKeys.length === 0) {
             console.warn('⚠️ ВНИМАНИЕ: API ключи OpenRouter не найдены! Добавьте ключи в keys.js или через настройки.');
@@ -546,8 +547,8 @@ ${musicBrainzResults ? `Подсказки из базы MusicBrainz: ${musicBra
                     // Пробуем извлечь из originalErrorMessage, если есть
                     const errorSource = (lastError && lastError.originalErrorMessage) ? lastError.originalErrorMessage : errorText;
                     const retryMatch = errorSource.match(/retry in ([\d.]+)s/i) || 
-                                      errorSource.match(/Please retry in ([\d.]+)s/i) ||
-                                      errorSource.match(/retry in ([\d.]+)\s*s/i);
+                                     errorSource.match(/Please retry in ([\d.]+)s/i) ||
+                                     errorSource.match(/retry in ([\d.]+)\s*s/i);
                     if (retryMatch) {
                         retryAfter = Math.ceil(parseFloat(retryMatch[1]));
                     }
