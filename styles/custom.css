@@ -1,4 +1,16 @@
 /* styles/custom.css - дополнительные стили */
+
+/* Принудительно убираем зачеркивание во всех сообщениях */
+.message-content,
+.message-content *,
+.message-content *::before,
+.message-content *::after {
+    text-decoration: none !important;
+    text-decoration-line: none !important;
+    text-decoration-style: none !important;
+    text-decoration-color: transparent !important;
+}
+
 .api-config-panel {
     background: rgba(0, 0, 0, 0.3);
     border-radius: 15px;
