@@ -23,16 +23,13 @@ const CONFIG = {
                 ? [window.API_CONFIG.primaryKey]
                 : [],
         
-        // Основная модель (Быстрая и бесплатная)
-        MODEL: (window.API_CONFIG && window.API_CONFIG.model) 
-            ? window.API_CONFIG.model 
-            : 'google/gemini-2.0-flash-lite-preview-02-05:free', 
+        // ПРИНУДИТЕЛЬНО СТАВИМ РАБОЧИЕ МОДЕЛИ (ИГНОРИРУЯ СТАРЫЕ НАСТРОЙКИ)
+        
+        // Основная: Flash Lite 2.0 (Быстрая, бесплатная)
+        MODEL: 'google/gemini-2.0-flash-lite-preview-02-05:free', 
 
-        // Резервная модель (Умная, экспериментальная)
-        // ИСПРАВЛЕНО: Заменена невалидная Pro на Thinking (она работает и бесплатна)
-        FALLBACK_MODEL: (window.API_CONFIG && window.API_CONFIG.fallbackModel)
-            ? window.API_CONFIG.fallbackModel
-            : 'google/gemini-2.0-flash-thinking-exp:free', 
+        // Резервная: Llama 3.1 (Супер-стабильная, не от Google, чтобы точно работала)
+        FALLBACK_MODEL: 'meta-llama/llama-3.1-8b-instruct:free', 
             
         ENDPOINT: 'https://openrouter.ai/api/v1/chat/completions'
     },
