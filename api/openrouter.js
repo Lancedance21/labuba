@@ -3,9 +3,12 @@ class OpenRouterAI {
     constructor(apiKey) {
         this.apiKey = apiKey || loadConfig('openrouter_key');
         this.baseUrl = 'https://openrouter.ai/api/v1/chat/completions';
+        
+        // ИСПРАВЛЕНО: Заменена старая модель на актуальную Gemini 2.0 Flash Lite
+        // Старая (gemini-flash-1.5-8b) выдавала ошибку 404
         this.model = (window.API_CONFIG && window.API_CONFIG.model) 
             ? window.API_CONFIG.model 
-            : 'google/gemini-flash-1.5-8b:free';
+            : 'google/gemini-2.0-flash-lite-preview-02-05:free';
     }
 
     async chat(message, history = []) {
@@ -49,10 +52,25 @@ class OpenRouterAI {
             });
 
             if (!response.ok) {
-                throw new Error(`API error: ${response.status}`);
+                // Пытаемся прочитать текст ошибки от сервера
+                let errorDetails = `HTTP ${response.status}`;
+                try {
+                    const errorData = await response.json();
+                    if (errorData.error && errorData.error.message) {
+                        errorDetails = errorData.error.message;
+                    }
+                } catch (e) {}
+                
+                throw new Error(`API error: ${errorDetails}`);
             }
 
             const data = await response.json();
+            
+            // Проверка на пустой ответ
+            if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+                throw new Error('Получен пустой ответ от API');
+            }
+            
             return data.choices[0].message.content;
         } catch (error) {
             console.error('OpenRouter error:', error);
