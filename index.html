@@ -762,6 +762,16 @@
             position: relative;
             backdrop-filter: blur(10px);
             box-shadow: 0 5px 20px rgba(99, 102, 241, 0.2);
+            text-decoration: none !important; /* Убираем зачеркивание */
+        }
+        
+        .message.ai .message-content,
+        .message.ai .message-content *,
+        .message.ai .message-content *::before,
+        .message.ai .message-content *::after {
+            text-decoration: none !important; /* Убираем зачеркивание везде */
+            text-decoration-line: none !important;
+            text-decoration-style: none !important;
         }
 
         .message.user .message-content {
@@ -1563,10 +1573,20 @@
             // КЛЮЧА НЕТ ИЛИ GITHUB РЕЖИМ — ПОКАЗЫВАЕМ ОКНО
             if (!keysJsLoaded && !configKeysLoaded && savedKey) {
                 console.log("⚠️ GitHub режим: keys.js не найден, показываю окно для ввода нового ключа");
-                updateStatus('⚠️ Введите новый API ключ (GitHub режим)', 'warning');
+                // Не показываем предупреждение, если ключ уже есть в keys.js
+                if (!keysFromConfig || keysFromConfig.length === 0) {
+                    updateStatus('⚠️ Введите новый API ключ (GitHub режим)', 'warning');
+                } else {
+                    updateStatus('✅ API ключ найден', 'active');
+                }
             } else {
                 console.log("⚠️ Ключ не найден, показываю модальное окно");
-                updateStatus('❌ Введите API ключ', 'warning');
+                // Не показываем предупреждение, если ключ уже есть в keys.js
+                if (!keysFromConfig || keysFromConfig.length === 0) {
+                    updateStatus('❌ Введите API ключ', 'warning');
+                } else {
+                    updateStatus('✅ API ключ найден', 'active');
+                }
             }
             
             if (modal) {
@@ -1610,10 +1630,14 @@
                 alert("Ошибка: модальное окно не найдено. Проверьте консоль браузера.");
             }
             
-            addMessageToChat(
-                "⚙️ **Требуется настройка:**\n\nЯ не нашел API ключ. Пожалуйста, введите его в окне выше. Вы можете получить бесплатный ключ по ссылке в модальном окне.", 
-                'ai'
-            );
+            // Показываем сообщение только если ключа действительно нет
+            // Проверяем еще раз, может ключ уже был добавлен через window.currentApiKey
+            if (!window.currentApiKey || window.currentApiKey.length < 20) {
+                addMessageToChat(
+                    "⚙️ **Требуется настройка:**\n\nЯ не нашел API ключ. Пожалуйста, введите его в окне выше. Вы можете получить бесплатный ключ по ссылке в модальном окне.", 
+                    'ai'
+                );
+            }
             return; 
         } 
         
@@ -1626,6 +1650,19 @@
             modal.style.pointerEvents = 'none';
             modal.style.visibility = 'hidden';
             console.log("✅ Ключ найден, модальное окно скрыто");
+        }
+
+        // Удаляем сообщение "Требуется настройка" из чата, если оно есть
+        const chatMessages = document.getElementById('chatMessages');
+        if (chatMessages) {
+            const messages = chatMessages.querySelectorAll('.message.ai');
+            messages.forEach(msg => {
+                const content = msg.querySelector('.message-content');
+                if (content && (content.textContent.includes('Требуется настройка') || 
+                               content.textContent.includes('не нашел API ключ'))) {
+                    msg.remove();
+                }
+            });
         }
 
         // 4. ЗАПУСКАЕМ ИНТЕРФЕЙС
@@ -1671,7 +1708,7 @@
             showTypingIndicator(true);
             try {
                 // ai-core сам обработает и покажет результат через addMessageToChat
-                await window.aiCore.processWithGoogleAI(message, currentSearchType || 'text');
+                await window.aiCore.processWithOpenRouter(message, currentSearchType || 'text');
             } catch (error) {
                 console.error('Ошибка ai-core:', error);
                 
@@ -2636,7 +2673,29 @@ ${musicBrainzResults && musicBrainzResults.length > 0 ? `\n🎯 НАЙДЕНО �
         
         const contentDiv = document.createElement('div');
         contentDiv.className = 'message-content';
-        contentDiv.innerHTML = text.replace(/\n/g, '<br>');
+        
+        // Обрабатываем текст: убираем все виды зачеркивания и экранируем HTML
+        let processedText = text
+            // Убираем markdown зачеркивание (~~текст~~)
+            .replace(/~~(.*?)~~/g, '$1')
+            // Убираем HTML теги зачеркивания
+            .replace(/<s[^>]*>(.*?)<\/s>/gi, '$1')
+            .replace(/<del[^>]*>(.*?)<\/del>/gi, '$1')
+            .replace(/<strike[^>]*>(.*?)<\/strike>/gi, '$1')
+            // Убираем Unicode символы зачеркивания (U+0336, U+0335, U+0338)
+            .replace(/[\u0336\u0335\u0338]/g, '')
+            // Убираем все HTML теги (на всякий случай)
+            .replace(/<[^>]+>/g, '')
+            // Экранируем HTML символы
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;')
+            // Заменяем переносы строк на <br>
+            .replace(/\n/g, '<br>');
+        
+        contentDiv.innerHTML = processedText;
         
         if (sender === 'ai') {
             const signature = document.createElement('div');
@@ -2663,7 +2722,29 @@ ${musicBrainzResults && musicBrainzResults.length > 0 ? `\n🎯 НАЙДЕНО �
             if (contentDiv) {
                 // Сохраняем signature если есть
                 const signature = contentDiv.querySelector('.neural-signature');
-                contentDiv.innerHTML = newText.replace(/\n/g, '<br>');
+                
+                // Обрабатываем текст: убираем все виды зачеркивания и экранируем HTML
+                let processedText = newText
+                    // Убираем markdown зачеркивание (~~текст~~)
+                    .replace(/~~(.*?)~~/g, '$1')
+                    // Убираем HTML теги зачеркивания
+                    .replace(/<s[^>]*>(.*?)<\/s>/gi, '$1')
+                    .replace(/<del[^>]*>(.*?)<\/del>/gi, '$1')
+                    .replace(/<strike[^>]*>(.*?)<\/strike>/gi, '$1')
+                    // Убираем Unicode символы зачеркивания (U+0336, U+0335, U+0338)
+                    .replace(/[\u0336\u0335\u0338]/g, '')
+                    // Убираем все HTML теги (на всякий случай)
+                    .replace(/<[^>]+>/g, '')
+                    // Экранируем HTML символы
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#039;')
+                    // Заменяем переносы строк на <br>
+                    .replace(/\n/g, '<br>');
+                
+                contentDiv.innerHTML = processedText;
                 if (signature) {
                     contentDiv.appendChild(signature);
                 }
@@ -2880,148 +2961,349 @@ ${musicBrainzResults && musicBrainzResults.length > 0 ? `\n🎯 НАЙДЕНО �
     window.quickSearch = quickSearch;
     </script>
 
+<style>
+    /* 1. Вытаскиваем окно настроек на самый верх */
+    #settingsModal {
+        z-index: 2147483647 !important; 
+    }
+
+    /* 2. Делаем кнопку и поле ввода "непробиваемыми" для пальца */
+    #saveApiKeyBtn, #googleApiKeyInput {
+        position: relative !important;
+        z-index: 2147483648 !important; 
+        pointer-events: auto !important;
+        cursor: pointer !important;
+        touch-action: manipulation !important; /* Убирает задержку нажатия */
+    }
+
+    /* 3. Предотвращение масштабирования на мобильных при фокусе */
+    #googleApiKeyInput {
+        font-size: 16px !important; /* Предотвращает зум на iOS */
+    }
+
+    @media (max-width: 768px) {
+        #googleApiKeyInput {
+            font-size: 16px !important;
+        }
+    }
+</style>
+
 <script>
     // Функция для принудительного показа модального окна
     function showApiKeyModal() {
         const modal = document.getElementById('settingsModal');
         if (modal) {
-            console.log("🔧 Показываю окно ввода ключа...");
+            console.log("🔧 Принудительный показ модального окна...");
             modal.classList.remove('hidden');
             modal.classList.add('show');
-            // Принудительные стили для мобилок, чтобы перекрыть всё
-            modal.style.cssText = 'display: flex !important; z-index: 2147483647 !important; visibility: visible !important; opacity: 1 !important; top: 0; left: 0; position: fixed; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.95);';
+            
+            // Принудительно устанавливаем все стили
+            modal.style.position = 'fixed';
+            modal.style.top = '0';
+            modal.style.left = '0';
+            modal.style.width = '100%';
+            modal.style.height = '100%';
+            modal.style.display = 'flex';
+            modal.style.opacity = '1';
+            modal.style.pointerEvents = 'all';
+            modal.style.visibility = 'visible';
+            modal.style.zIndex = '2147483647';
+            modal.style.background = 'rgba(15, 23, 42, 0.95)';
+            modal.style.backdropFilter = 'blur(15px)';
+            modal.style.justifyContent = 'center';
+            modal.style.alignItems = 'center';
+            
+            console.log("✅ Модальное окно показано. Стили:", {
+                display: modal.style.display,
+                opacity: modal.style.opacity,
+                zIndex: modal.style.zIndex,
+                visibility: modal.style.visibility
+            });
+            
             return true;
+        } else {
+            console.error("❌ Модальное окно не найдено!");
         }
         return false;
     }
 
-    // Делаем доступной глобально
+    // Делаем функцию доступной глобально для отладки
     window.showApiKeyModal = showApiKeyModal;
 
     document.addEventListener('DOMContentLoaded', () => {
-        console.log("📱 Инициализация управления ключами...");
+        console.log("📱 Инициализация модального окна API ключа...");
 
         const modal = document.getElementById('settingsModal');
         const saveBtn = document.getElementById('saveApiKeyBtn');
         const apiInput = document.getElementById('googleApiKeyInput');
 
-        // === ГЛАВНАЯ ФУНКЦИЯ СОХРАНЕНИЯ ===
+        // Проверяем наличие элементов
+        console.log("🔍 Элементы:", {
+            modal: !!modal,
+            saveBtn: !!saveBtn,
+            apiInput: !!apiInput
+        });
+
+        // Функция сохранения ключа
         function saveApiKey() {
             const key = apiInput ? apiInput.value.trim() : "";
 
-            // 1. Проверка длины ключа
-            if (!key || key.length < 20) {
+            if (!key || key.length < 10) {
+                // Показываем ошибку визуально
                 if (apiInput) {
                     apiInput.style.borderColor = '#ef4444';
-                    apiInput.placeholder = "❌ Введите ключ!";
+                    apiInput.placeholder = "❌ Введите корректный API ключ";
                     setTimeout(() => {
-                        apiInput.style.borderColor = ''; 
-                        apiInput.placeholder = "AIzaSy..."; 
+                        apiInput.style.borderColor = '';
+                        apiInput.placeholder = "AIzaSy...";
                     }, 2000);
+                }
+                // Фокус на поле ввода
+                if (apiInput) {
+                    apiInput.focus();
                 }
                 return false;
             }
 
+            // Сохраняем ключ в window.currentApiKey (только для текущей сессии)
+            // При перезагрузке страницы переменная очистится, и модальное окно появится снова
             try {
-                console.log("🚀 Начинаю сохранение ключа...");
-
-                // 2. Сохраняем глобально (на всякий случай)
                 window.currentApiKey = key;
-                window.GOOGLE_API_KEYS = [key];
+                console.log("✅ API ключ установлен (исчезнет при перезагрузке)");
 
-                // 3. 🔥 ВОТ ЭТОГО НЕ ХВАТАЛО: ПЕРЕДАЕМ КЛЮЧ В МОЗГ ПРЯМО СЕЙЧАС 🔥
+                // Обновляем AI Core с новым ключом
                 if (window.aiCore) {
-                    window.aiCore.apiKeys = [key];       // Даем ключ списком
-                    window.aiCore.googleAIKey = key;     // Даем как основной
-                    window.aiCore.currentKeyIndex = 0;   // Сбрасываем индекс
-                    window.aiCore.availableModels = null; // Заставляем перепроверить модели
-                    console.log("💉 Ключ успешно внедрен в AI Core!");
-                } else {
-                    console.warn("⚠️ AI Core еще не загружен, но ключ сохранен");
+                    if (!window.aiCore.apiKeys || window.aiCore.apiKeys.length === 0) {
+                        window.aiCore.apiKeys = [key];
+                    } else {
+                        // Добавляем ключ, если его еще нет
+                        if (!window.aiCore.apiKeys.includes(key)) {
+                            window.aiCore.apiKeys.push(key);
+                        }
+                    }
+                    window.aiCore.currentKeyIndex = 0;
+                    window.aiCore.openRouterKey = key;
                 }
 
-                // 4. Обновляем статус на "Готов"
-                const statusBadge = document.getElementById('statusBadge');
-                const statusDot = document.getElementById('neuralStatus');
-                const statusText = document.getElementById('statusText');
-                
-                if (statusText) statusText.textContent = "Готов к работе";
-                if (statusDot) statusDot.style.background = "#10b981"; // Зеленый
+                // Удаляем сообщение "Требуется настройка" из чата
+                const chatMessages = document.getElementById('chatMessages');
+                if (chatMessages) {
+                    const messages = chatMessages.querySelectorAll('.message.ai');
+                    messages.forEach(msg => {
+                        const content = msg.querySelector('.message-content');
+                        if (content && (content.textContent.includes('Требуется настройка') || 
+                                       content.textContent.includes('не нашел API ключ'))) {
+                            msg.remove();
+                        }
+                    });
+                }
 
-                // 5. Визуальный эффект успеха
+                // Обновляем статус
+                updateStatus('✅ API ключ установлен', 'active');
+
+                // Показываем успех
                 if (saveBtn) {
-                    saveBtn.innerHTML = '<i class="fas fa-check"></i> <span>Готово!</span>';
-                    saveBtn.style.background = '#10b981';
+                    const originalText = saveBtn.innerHTML;
+                    saveBtn.innerHTML = '<i class="fas fa-check"></i> <span>Сохранено!</span>';
+                    saveBtn.style.background = 'linear-gradient(90deg, #10b981, #059669)';
+
+                    // Закрываем модальное окно с анимацией
+                    setTimeout(() => {
+                        if (modal) {
+                            modal.classList.add('hidden');
+                            modal.style.opacity = '0';
+                            
+                            // НЕ перезагружаем страницу - ключ уже в sessionStorage, модальное окно закроется
+                            // При следующей перезагрузке (F5) sessionStorage очистится и окно появится снова
+                        }
+                    }, 500);
                 }
-
-                // 6. Скрываем окно через полсекунды
-                setTimeout(() => {
-                    if (modal) {
-                        modal.classList.add('hidden');
-                        modal.classList.remove('show');
-                        modal.style.display = 'none';
-                    }
-                    // Чистим поле
-                    if (apiInput) apiInput.value = '';
-                    
-                    // Возвращаем кнопку
-                    if (saveBtn) {
-                        setTimeout(() => {
-                            saveBtn.innerHTML = '<i class="fas fa-save"></i> <span>Сохранить ключ</span>';
-                            saveBtn.style.background = '';
-                        }, 500);
-                    }
-                }, 500);
-
                 return true;
             } catch (e) {
-                console.error("Ошибка при сохранении:", e);
-                alert("Ошибка: " + e.message);
+                console.error("Ошибка сохранения ключа:", e);
+                alert("❌ Ошибка сохранения. Попробуйте еще раз.");
                 return false;
             }
         }
 
-        // === ОБРАБОТЧИКИ НАЖАТИЙ ===
+        // Обработчики для кнопки сохранения
         if (saveBtn) {
-            // Для телефона (Touch)
+            // Клик мыши
+            saveBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                saveApiKey();
+            });
+
+            // Тач-события для мобильных
             saveBtn.addEventListener('touchstart', (e) => {
-                if (e.cancelable) e.preventDefault(); 
+                e.preventDefault();
                 e.stopPropagation();
                 saveApiKey();
             }, { passive: false });
 
-            // Для компа (Click)
-            saveBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                saveApiKey();
+            // Нажатие Enter в поле ввода
+            if (apiInput) {
+                apiInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        saveApiKey();
+                    }
+                });
+            }
+        }
+
+        // Фокус на поле ввода при открытии модального окна (для мобильных)
+        if (apiInput) {
+            // Тач-событие для открытия клавиатуры
+            apiInput.addEventListener('touchstart', function(e) {
+                e.stopPropagation();
+                this.focus();
+                // На мобильных устройствах может потребоваться задержка
+                setTimeout(() => {
+                    this.focus();
+                }, 100);
+            }, { passive: false });
+
+            // Клик тоже обрабатываем
+            apiInput.addEventListener('click', function(e) {
+                e.stopPropagation();
+                this.focus();
             });
         }
 
-        // Обработка Enter в поле
-        if (apiInput) {
-            apiInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    apiInput.blur(); // Убираем клавиатуру
-                    saveApiKey();
+        // Проверяем при загрузке, нужно ли показать модальное окно
+        const checkAndShowModal = () => {
+            // Всегда очищаем localStorage - не используем сохраненный ключ
+            localStorage.removeItem('music_ai_google_key');
+            const savedKey = null; // Всегда null - не используем сохраненный ключ
+            let hasValidKey = false;
+
+            if (false && savedKey) { // Всегда false - не проверяем сохраненный ключ
+                try {
+                    let parsedKey = JSON.parse(savedKey);
+                    if (typeof parsedKey === 'string' && parsedKey.startsWith('"')) {
+                        parsedKey = JSON.parse(parsedKey);
+                    }
+                    if (parsedKey && typeof parsedKey === 'string' && parsedKey.length >= 20) {
+                        hasValidKey = true;
+                        console.log("✅ Валидный ключ найден в localStorage");
+                    }
+                } catch (e) {
+                    console.error("Ошибка проверки ключа:", e);
+                }
+            }
+
+            if (!hasValidKey) {
+                console.log("⚠️ Ключ не найден в localStorage, показываю модальное окно");
+                
+                // Показываем модальное окно несколькими способами для надежности
+                if (modal) {
+                    // Способ 1: через функцию
+                    showApiKeyModal();
+                    
+                    // Способ 2: напрямую через стили (на случай если функция не сработала)
+                    setTimeout(() => {
+                        if (modal.classList.contains('hidden')) {
+                            console.log("🔄 Повторная попытка показа модального окна...");
+                            modal.classList.remove('hidden');
+                            modal.classList.add('show');
+                            modal.style.cssText = `
+                                position: fixed !important;
+                                top: 0 !important;
+                                left: 0 !important;
+                                width: 100vw !important;
+                                height: 100vh !important;
+                                display: flex !important;
+                                opacity: 1 !important;
+                                pointer-events: all !important;
+                                visibility: visible !important;
+                                z-index: 2147483647 !important;
+                                background: rgba(15, 23, 42, 0.95) !important;
+                                backdrop-filter: blur(15px) !important;
+                                justify-content: center !important;
+                                align-items: center !important;
+                            `;
+                        }
+                        
+                        // Фокус на поле ввода
+                        if (apiInput) {
+                            apiInput.focus();
+                            console.log("✅ Фокус установлен на поле ввода");
+                        }
+                    }, 300);
+                } else {
+                    console.error("❌ Модальное окно не найдено в DOM!");
+                }
+            } else {
+                console.log("✅ Ключ найден, модальное окно не показываем");
+            }
+        };
+
+        // Проверяем сразу и через задержки (на случай если основной скрипт еще не выполнился)
+        checkAndShowModal();
+        setTimeout(checkAndShowModal, 500);
+        setTimeout(checkAndShowModal, 1500);
+        setTimeout(checkAndShowModal, 3000);
+
+        // Автофокус на поле ввода, когда модальное окно открывается
+        const observer = new MutationObserver(() => {
+            if (modal && !modal.classList.contains('hidden')) {
+                setTimeout(() => {
+                    if (apiInput) {
+                        apiInput.focus();
+                        // Прокручиваем к полю ввода на мобильных
+                        if (window.innerWidth <= 768) {
+                            apiInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }
+                    }
+                }, 500);
+            }
+        });
+
+        if (modal) {
+            observer.observe(modal, {
+                attributes: true,
+                attributeFilter: ['class', 'style']
+            });
+
+            // Если модальное окно уже открыто при загрузке
+            if (!modal.classList.contains('hidden')) {
+                setTimeout(() => {
+                    if (apiInput) {
+                        apiInput.focus();
+                    }
+                }, 500);
+            }
+        }
+
+        // Предотвращаем закрытие модального окна при клике на фон
+        if (modal) {
+            modal.addEventListener('click', (e) => {
+                // Закрываем только если кликнули на сам фон (не на контент)
+                if (e.target === modal) {
+                    e.stopPropagation();
+                    // Не закрываем - ключ обязателен для работы
                 }
             });
-        }
 
-        // === ПРОВЕРКА ПРИ ЗАПУСКЕ ===
-        // Если ключей нет в конфиге (мы на GitHub), показываем окно
-        setTimeout(() => {
-            const hasConfigKeys = window.CONFIG && window.CONFIG.GOOGLE_AI && window.CONFIG.GOOGLE_AI.API_KEYS && window.CONFIG.GOOGLE_AI.API_KEYS.length > 0;
-            
-            // Если ключей нет в файлах И мы еще не ввели их вручную
-            if (!hasConfigKeys && !window.currentApiKey) {
-                showApiKeyModal();
+            // На мобильных тоже
+            modal.addEventListener('touchstart', (e) => {
+                if (e.target === modal) {
+                    e.stopPropagation();
+                }
+            }, { passive: false });
+
+            // Предотвращаем закрытие при клике на контент
+            const modalContent = modal.querySelector('.settings-content');
+            if (modalContent) {
+                modalContent.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                });
             }
-        }, 1500); // Даем чуть больше времени на загрузку
+        }
     });
 </script>
 </body>
 </html>
-
-
 
