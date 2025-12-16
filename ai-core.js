@@ -1,6 +1,6 @@
 // ai-core.js - АДАПТИВНОЕ ЯДРО (Разные режимы для разных кнопок)
-// ВЕРСИЯ: 2.1 - Исправлены hardcoded модели на рабочие Gemini 2.0
-console.log('🚀 AI Core загружен (версия 2.1)');
+// ВЕРСИЯ: 2.2 - Исправлен ID резервной модели (400 Bad Request)
+console.log('🚀 AI Core загружен (версия 2.2)');
 
 class MusicAICore {
     constructor() {
@@ -51,19 +51,22 @@ class MusicAICore {
         this.currentKeyIndex = 0;
         this.openRouterKey = this.apiKeys.length > 0 ? this.apiKeys[this.currentKeyIndex] : null;
         
-        // --- ИСПРАВЛЕНИЕ ЗДЕСЬ (Убрана старая модель flash-1.5-8b) ---
+        // --- ИСПРАВЛЕНИЕ ЗДЕСЬ ---
+        // Основная модель (Flash Lite - быстрая и дешевая/бесплатная)
         this.modelName = (window.CONFIG && window.CONFIG.OPENROUTER && window.CONFIG.OPENROUTER.MODEL)
             ? window.CONFIG.OPENROUTER.MODEL
             : (window.API_CONFIG && window.API_CONFIG.model)
                 ? window.API_CONFIG.model
-                : 'google/gemini-2.0-flash-lite-preview-02-05:free'; // ✅ Новая быстрая модель
+                : 'google/gemini-2.0-flash-lite-preview-02-05:free'; 
         
-        // --- ИСПРАВЛЕНИЕ ЗДЕСЬ (Убрана модель mistral) ---
+        // --- ИСПРАВЛЕНИЕ ЗДЕСЬ (Замена невалидной Pro модели на Thinking Exp) ---
+        // Было: google/gemini-2.0-pro-exp-02-05:free (Ошибка 400)
+        // Стало: google/gemini-2.0-flash-thinking-exp:free (Рабочая бесплатная модель)
         this.fallbackModel = (window.CONFIG && window.CONFIG.OPENROUTER && window.CONFIG.OPENROUTER.FALLBACK_MODEL)
             ? window.CONFIG.OPENROUTER.FALLBACK_MODEL
             : (window.API_CONFIG && window.API_CONFIG.fallbackModel)
                 ? window.API_CONFIG.fallbackModel
-                : 'google/gemini-2.0-pro-exp-02-05:free'; // ✅ Мощная Pro модель на замену
+                : 'google/gemini-2.0-flash-thinking-exp:free'; 
         
         this.isListening = false;
         this.recognition = null;
