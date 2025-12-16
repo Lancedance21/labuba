@@ -14,6 +14,23 @@ const CONFIG = {
         ENDPOINT: 'https://generativelanguage.googleapis.com/v1/models'
     },
     
+    OPENROUTER: {
+        // Настройки для OpenRouter API
+        // Используем новую структуру API_CONFIG из keys.js
+        API_KEYS: (window.API_CONFIG && window.API_CONFIG.primaryKey && window.API_CONFIG.fallbackKey)
+            ? [window.API_CONFIG.primaryKey, window.API_CONFIG.fallbackKey]
+            : (window.API_CONFIG && window.API_CONFIG.primaryKey)
+                ? [window.API_CONFIG.primaryKey]
+                : [],
+        MODEL: (window.API_CONFIG && window.API_CONFIG.model) 
+            ? window.API_CONFIG.model 
+            : 'google/gemini-flash-1.5-8b:free',
+        FALLBACK_MODEL: (window.API_CONFIG && window.API_CONFIG.fallbackModel)
+            ? window.API_CONFIG.fallbackModel
+            : 'mistralai/mistral-7b-instruct:free',
+        ENDPOINT: 'https://openrouter.ai/api/v1/chat/completions'
+    },
+    
     // Твои настройки голоса (оставил без изменений)
     VOICE: {
         LANG: 'ru-RU',
