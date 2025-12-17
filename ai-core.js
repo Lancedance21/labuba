@@ -1,109 +1,131 @@
-processWithOpenRouter: async function(userInput, searchType = 'text') {
-    console.log('🎯 ProcessWithOpenRouter:', searchType);
-    
-    this.updateKeys();
-    
-    if (this.apiKeys.length === 0) {
-        const errorMsg = "⚠️ **Нет API ключа**\n\nВведите Google AI API ключ.";
-        console.error(errorMsg);
-        
-        if (window.addMessageToChat) {
-            window.addMessageToChat(errorMsg, 'ai');
-        }
-        if (window.showApiKeyModal) {
-            setTimeout(() => window.showApiKeyModal(), 500);
-        }
-        return;
+// ai-core.js — стабильная версия без ошибок
+console.log('🚀 AI Core загружен (Stable Edition)');
+
+class MusicAICore {
+    constructor() {
+        this.apiKeys = [];
+        this.currentKeyIndex = 0;
+
+        this.baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
+        this.modelName = 'gemini-1.5-flash'; // дефолт, потом заменим
+
+        this.musicDB = window.musicDatabase || [];
+
+        this.loadKeys();
+        this.autoDetectModel();
     }
 
-    const thinkingMsgId = 'thinking_' + Date.now();
-    if (window.addMessageToChat) {
-        window.addMessageToChat('🤔 Думаю...', 'ai', thinkingMsgId);
-    }
+    // Загружаем ключи из всех источников
+    loadKeys() {
+        const allKeys = [
+            ...(window.API_CONFIG?.googleKeys || []),
+            ...(window.CONFIG?.GOOGLE_AI?.API_KEYS || []),
+            window.currentApiKey
+        ].filter(k => typeof k === 'string' && k.length > 20);
 
-    try {
-        const apiKey = this.getCurrentKey();
-        if (!apiKey) throw new Error('Нет API ключа');
-        
-        // 🔥 ИСПРАВЛЕНО: Используем безопасное имя модели
-        const safeModelName = this.getSafeModelName();
-        const prompt = this.buildPrompt(userInput, searchType);
-        const url = `${this.baseUrl}/models/${safeModelName}:generateContent?key=${apiKey}`;
-        
-        console.log(`📡 Отправка запроса к ${safeModelName}...`);
-        
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: {
-                    temperature: 0.7,
-                    maxOutputTokens: 2048
-                }
-            })
-        });
+        this.apiKeys = [...new Set(allKeys)];
 
-        if (!response.ok) {
-            const errorData = await response.json();
-            const errorMessage = errorData.error?.message || 'Ошибка API';
-            
-            // 🔥 ВАЖНОЕ ИСПРАВЛЕНИЕ: Убрал рекурсивный вызов!
-            // Теперь просто показываем ошибку и выходим
-            
-            if (window.removeMessageFromChat) {
-                window.removeMessageFromChat(thinkingMsgId);
-            }
-            
-            let errorMsg = `❌ **Ошибка:** ${errorMessage}`;
-            
-            if (errorMessage.includes('overloaded') || errorMessage.includes('перегружен')) {
-                errorMsg = '⚠️ **Модель перегружена**\n\nСерверы Google AI временно перегружены. Пожалуйста, попробуйте через несколько минут.';
-            } else if (errorMessage.includes('model') || errorMessage.includes('модель')) {
-                errorMsg = '⚠️ **Проблема с моделью AI**\n\nПопробую использовать другую модель...';
-                // Меняем модель для следующего запроса, но НЕ вызываем рекурсивно
-                this.modelName = this.getFallbackModel();
-            }
-            
-            if (window.addMessageToChat) {
-                window.addMessageToChat(errorMsg, 'ai');
-            }
-            
-            return; // 🔥 ВАЖНО: Просто выходим, не вызываем себя снова!
-        }
-
-        const data = await response.json();
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-        if (window.removeMessageFromChat) {
-            window.removeMessageFromChat(thinkingMsgId);
-        }
-        
-        if (text && window.addMessageToChat) {
-            window.addMessageToChat(text, 'ai');
-        } else {
-            throw new Error('Пустой ответ от AI');
-        }
-
-    } catch (error) {
-        console.error('❌ Ошибка:', error);
-        
-        if (window.removeMessageFromChat) {
-            window.removeMessageFromChat(thinkingMsgId);
-        }
-        
-        if (window.addMessageToChat) {
-            let errorMsg = `❌ **Ошибка:** ${error.message}`;
-            
-            if (error.message.includes('overloaded') || error.message.includes('перегружен')) {
-                errorMsg = '⚠️ **Модель перегружена**\n\nСерверы Google AI временно перегружены. Пожалуйста, попробуйте через несколько минут.';
-            } else if (error.message.includes('model') || error.message.includes('модель')) {
-                errorMsg = '⚠️ **Проблема с моделью AI**\n\nПопробую использовать другую модель...';
-                // Меняем модель для следующего запроса
-                this.modelName = this.getFallbackModel();
-            }
-            
-            window.addMessageToChat(errorMsg, 'ai');
+        if (this.apiKeys.length === 0) {
+            console.warn("⚠️ Нет ключей Google API");
         }
     }
-},
+
+    getCurrentKey() {
+        return this.apiKeys[this.currentKeyIndex];
+    }
+
+    // Автоопределение доступной модели
+    async autoDetectModel() {
+        if (this.apiKeys.length === 0) return;
+
+        const key = this.getCurrentKey();
+        console.log("🔍 Проверяю доступные модели...");
+
+        try {
+            const res = await fetch(`${this.baseUrl}/models?key=${key}`);
+            const data = await res.json();
+
+            if (data.error) {
+                console.error("❌ Ошибка API:", data.error.message);
+                return;
+            }
+
+            const valid = (data.models || [])
+                .filter(m => m.supportedGenerationMethods?.includes('generateContent'))
+                .map(m => m.name.replace('models/', ''));
+
+            console.log("📌 Доступные модели:", valid);
+
+            const priority = [
+                'gemini-1.5-flash',
+                'gemini-1.5-flash-001',
+                'gemini-1.0-pro',
+                'gemini-pro'
+            ];
+
+            const selected = priority.find(m => valid.includes(m)) || valid[0];
+
+            if (selected) {
+                this.modelName = selected;
+                console.log(`🎉 Выбрана модель: ${this.modelName}`);
+            }
+
+        } catch (e) {
+            console.warn("⚠️ Не удалось получить список моделей:", e.message);
+        }
+    }
+
+    // Основная функция обработки запроса
+    async processWithOpenRouter(userInput) {
+        if (this.apiKeys.length === 0) {
+            window.addMessageToChat?.("⚠️ Нет ключей API", "ai");
+            return;
+        }
+
+        window.addMessageToChat?.("🤔 Думаю...", "ai", "thinking_msg");
+
+        const prompt = `Ты музыкальный эксперт. Посоветуй музыку по запросу: "${userInput}". Формат: Название — Исполнитель.`;
+
+        try {
+            const key = this.getCurrentKey();
+            const url = `${this.baseUrl}/models/${this.modelName}:generateContent?key=${key}`;
+
+            const response = await fetch(url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }]
+                })
+            });
+
+            const data = await response.json();
+
+            window.removeMessageFromChat?.("thinking_msg");
+
+            if (data.error) {
+                throw new Error(data.error.message);
+            }
+
+            const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+            if (!text) throw new Error("Пустой ответ от API");
+
+            window.addMessageToChat?.(text, "ai");
+
+        } catch (e) {
+            window.removeMessageFromChat?.("thinking_msg");
+            window.addMessageToChat?.(
+                `❌ Ошибка: ${e.message}\n💡 Проверь, включён ли Generative Language API.`,
+                "ai"
+            );
+        }
+    }
+
+    // Заглушки
+    setupVoiceRecognition() {}
+    startVoiceInput() { alert("Голосовой ввод временно отключён"); }
+    processQuery(t) { this.processWithOpenRouter(t); }
+}
+
+window.MusicAICore = MusicAICore;
+if (!window.aiCore) window.aiCore = new MusicAICore();
