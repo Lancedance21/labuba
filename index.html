@@ -22,6 +22,34 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Подключаем Transformers.js для нейросети -->
     <script src="https://cdn.jsdelivr.net/npm/@xenova/transformers@2.6.0"></script>
+    // Исправленная инициализация - ждем загрузки всех скриптов
+window.addEventListener('load', async function() {
+    console.log("🚀 Все скрипты загружены");
+    
+    // Даем время на инициализацию ai-core
+    setTimeout(() => {
+        if (window.aiCore) {
+            console.log("✅ AI Core найден, ключей:", window.aiCore.apiKeys.length);
+            
+            // Если ключей нет, показываем модальное окно
+            if (window.aiCore.apiKeys.length === 0) {
+                console.log("⚠️ Нет ключей, показываю модальное окно");
+                const modal = document.getElementById('settingsModal');
+                if (modal) {
+                    modal.classList.remove('hidden');
+                    modal.style.display = 'flex';
+                }
+            } else {
+                console.log("✅ Ключи есть, начинаем работу");
+                // Активируем кнопки
+                document.getElementById('sendMessage').disabled = false;
+                document.getElementById('chatInput').placeholder = "Напишите ваш вопрос о музыке...";
+            }
+        } else {
+            console.error("❌ AI Core не найден!");
+        }
+    }, 1000);
+});
     <style>
         /* Современный музыкальный дизайн */
         * {
@@ -3349,6 +3377,7 @@ ${musicBrainzResults && musicBrainzResults.length > 0 ? `\n🎯 НАЙДЕНО �
 </script>
 </body>
 </html>
+
 
 
 
