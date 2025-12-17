@@ -1,70 +1,68 @@
-// ai-core.js - GOOGLE GEMINI (ВЕРСИЯ 7.2 - FIXED processQuery METHOD)
-// Добавлен метод processQuery для совместимости
-console.log('🚀 AI Core загружен (версия 7.2 - Fixed processQuery)');
+// ai-core.js - GOOGLE GEMINI (ВЕРСИЯ 7.3 - FIXED PROCESSQUERY)
+console.log('🚀 AI Core загружен (версия 7.3)');
 
 class MusicAICore {
     constructor() {
+        console.log('🛠️ Создание нового экземпляра AI Core');
         this.apiKeys = [];
-        this.loadKeys();
         this.currentKeyIndex = 0;
-        
-        // Базовый URL
         this.baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
-        
-        // Безопасная дефолтная модель
-        this.modelName = 'gemini-1.5-flash'; 
-        
+        this.modelName = 'gemini-1.5-flash';
         this.musicDB = window.musicDatabase || [];
         
-        // Запускаем поиск доступных моделей
-        this.initAutoDiscovery();
+        // Загружаем ключи
+        this.loadKeys();
         
-        console.log('✅ AI Core инициализирован. Ключей:', this.apiKeys.length);
+        // Запускаем auto-discovery
+        setTimeout(() => this.initAutoDiscovery(), 1000);
+        
+        console.log('✅ AI Core создан. Ключей:', this.apiKeys.length);
     }
 
     loadKeys() {
-        console.log('🔍 Загрузка ключей из всех источников...');
+        console.log('🔍 Загрузка ключей...');
         
-        const allKeySources = [];
+        const allKeys = [];
         
-        // Источник 1: window.currentApiKey (из модального окна)
-        if (window.currentApiKey && typeof window.currentApiKey === 'string' && window.currentApiKey.length >= 20) {
-            allKeySources.push(window.currentApiKey);
-            console.log('✅ Ключ из window.currentApiKey');
+        // 1. Ключ из модального окна (самый важный)
+        if (window.currentApiKey && window.currentApiKey.length >= 20) {
+            allKeys.push(window.currentApiKey);
+            console.log('✅ Добавлен ключ из window.currentApiKey');
         }
         
-        // Источник 2: API_CONFIG (keys.js)
-        if (window.API_CONFIG?.googleKeys) {
-            allKeySources.push(...window.API_CONFIG.googleKeys);
+        // 2. Ключи из API_CONFIG (keys.js)
+        if (window.API_CONFIG?.googleKeys?.length > 0) {
+            allKeys.push(...window.API_CONFIG.googleKeys);
+            console.log(`✅ Добавлены ${window.API_CONFIG.googleKeys.length} ключей из API_CONFIG`);
         }
         
-        // Источник 3: CONFIG (config.js)
-        if (window.CONFIG?.GOOGLE_AI?.API_KEYS) {
-            allKeySources.push(...window.CONFIG.GOOGLE_AI.API_KEYS);
+        // 3. Ключи из CONFIG (config.js)
+        if (window.CONFIG?.GOOGLE_AI?.API_KEYS?.length > 0) {
+            allKeys.push(...window.CONFIG.GOOGLE_AI.API_KEYS);
+            console.log(`✅ Добавлены ${window.CONFIG.GOOGLE_AI.API_KEYS.length} ключей из CONFIG`);
         }
         
-        // Источник 4: localStorage
+        // 4. Ключ из localStorage
         try {
             const savedKey = localStorage.getItem('music_ai_google_key');
             if (savedKey && savedKey.length >= 20) {
-                allKeySources.push(savedKey);
+                if (!allKeys.includes(savedKey)) {
+                    allKeys.push(savedKey);
+                    console.log('✅ Добавлен ключ из localStorage');
+                }
             }
         } catch (e) {}
         
-        // Фильтруем и убираем дубликаты
-        this.apiKeys = [...new Set(allKeySources.filter(k => 
+        // Убираем дубликаты и невалидные ключи
+        this.apiKeys = [...new Set(allKeys.filter(k => 
             k && typeof k === 'string' && k.length >= 20
         ))];
         
-        console.log(`📊 Итого ключей: ${this.apiKeys.length}`);
-        
-        if (this.apiKeys.length === 0) {
-            console.warn("⚠️ Ключи не найдены!");
-        }
+        console.log(`📊 Всего ключей: ${this.apiKeys.length}`);
     }
 
     updateKeys() {
-        console.log('🔄 Обновление ключей в AI Core...');
+        console.log('🔄 Обновление ключей...');
         const oldCount = this.apiKeys.length;
         this.loadKeys();
         console.log(`📈 Ключей было: ${oldCount}, стало: ${this.apiKeys.length}`);
@@ -73,12 +71,10 @@ class MusicAICore {
 
     getCurrentKey() {
         if (this.apiKeys.length === 0) {
-            console.error('❌ Нет доступных ключей!');
+            console.error('❌ Нет доступных ключей');
             return null;
         }
-        
-        const key = this.apiKeys[this.currentKeyIndex];
-        return key;
+        return this.apiKeys[this.currentKeyIndex];
     }
 
     async initAutoDiscovery() {
@@ -91,183 +87,151 @@ class MusicAICore {
         if (!apiKey) return;
         
         try {
+            console.log('🔍 Проверяю доступные модели...');
             const response = await fetch(`${this.baseUrl}/models?key=${apiKey}`);
             const data = await response.json();
             
-            if (data.error) {
-                console.error("❌ Ошибка ключа:", data.error.message);
-                return;
-            }
-
             if (data.models) {
                 const validModels = data.models
                     .filter(m => m.supportedGenerationMethods?.includes('generateContent'))
                     .map(m => m.name.replace('models/', ''));
                 
-                const priority = ['gemini-1.5-flash', 'gemini-1.5-flash-001', 'gemini-1.5-pro', 'gemini-1.0-pro', 'gemini-pro'];
-                let selected = validModels.find(m => priority.includes(m)) || validModels[0];
-
+                const priority = ['gemini-1.5-flash', 'gemini-1.5-flash-001', 'gemini-1.5-pro'];
+                const selected = validModels.find(m => priority.includes(m)) || validModels[0];
+                
                 if (selected) {
                     this.modelName = selected;
                     console.log(`🎉 Использую модель: ${this.modelName}`);
                 }
             }
         } catch (e) {
-            console.warn("⚠️ Не удалось получить список моделей. Использую дефолтную.");
-            this.modelName = 'gemini-1.5-flash';
+            console.warn('⚠️ Не удалось получить список моделей');
         }
     }
 
+    // 🔥 ВАЖНО: Главный метод для обработки запросов
+    async processQuery(userInput) {
+        console.log('📝 Обработка запроса:', userInput.substring(0, 50));
+        return this.processWithOpenRouter(userInput, window.currentSearchType || 'text');
+    }
+    
+    // 🔥 ВАЖНО: Альтернативное имя для совместимости
+    async process(userInput) {
+        return this.processQuery(userInput);
+    }
+
     async processWithOpenRouter(userInput, searchType = 'text') {
+        console.log('🎯 Process with OpenRouter:', searchType);
+        
+        // Обновляем ключи перед запросом
         this.updateKeys();
         
         if (this.apiKeys.length === 0) {
-            const errorMsg = "⚠️ **Нет API ключа**\n\nПожалуйста, введите Google AI API ключ.";
+            const errorMsg = "⚠️ **Нет API ключа**\n\nВведите Google AI API ключ.";
+            console.error(errorMsg);
             
             if (window.addMessageToChat) {
                 window.addMessageToChat(errorMsg, 'ai');
             }
-            
             if (window.showApiKeyModal) {
-                window.showApiKeyModal();
+                setTimeout(() => window.showApiKeyModal(), 500);
             }
-            
             return;
         }
 
-        let thinkingMsgId = null;
+        // Показываем индикатор
+        const thinkingMsgId = 'thinking_' + Date.now();
         if (window.addMessageToChat) {
-            const thinkingMsg = window.addMessageToChat('🤔 Думаю...', 'ai', 'thinking_msg');
-            thinkingMsgId = 'thinking_msg';
+            window.addMessageToChat('🤔 Думаю...', 'ai', thinkingMsgId);
         }
 
-        let prompt = this.buildPrompt(userInput, searchType);
-        
         try {
             const apiKey = this.getCurrentKey();
-            if (!apiKey) {
-                throw new Error('Не удалось получить API ключ');
-            }
+            if (!apiKey) throw new Error('Нет ключа API');
             
+            const prompt = this.buildPrompt(userInput, searchType);
             const url = `${this.baseUrl}/models/${this.modelName}:generateContent?key=${apiKey}`;
             
-            console.log(`📡 Отправка запроса к ${this.modelName}...`);
+            console.log('📡 Отправка запроса к:', this.modelName);
             
             const response = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    contents: [{ 
-                        parts: [{ text: prompt }] 
-                    }],
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }],
                     generationConfig: {
                         temperature: 0.7,
-                        maxOutputTokens: 2048,
+                        maxOutputTokens: 2048
                     }
                 })
             });
 
             if (!response.ok) {
-                const errData = await response.json();
-                const errText = errData.error?.message || response.statusText;
-                
-                if (this.apiKeys.length > 1) {
-                    console.log(`🔄 Пробую следующий ключ`);
-                    this.currentKeyIndex = (this.currentKeyIndex + 1) % this.apiKeys.length;
-                    return this.processWithOpenRouter(userInput, searchType);
-                }
-                
-                throw new Error(`Google API Error: ${errText}`);
+                const errorData = await response.json();
+                throw new Error(errorData.error?.message || 'Ошибка API');
             }
 
             const data = await response.json();
             const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
-            if (thinkingMsgId && window.removeMessageFromChat) {
+            // Убираем индикатор
+            if (window.removeMessageFromChat) {
                 window.removeMessageFromChat(thinkingMsgId);
             }
             
-            if (text && window.addMessageToChat) {
-                window.addMessageToChat(text, 'ai');
+            if (text) {
+                if (window.addMessageToChat) {
+                    window.addMessageToChat(text, 'ai');
+                }
             } else {
-                throw new Error("Пустой ответ от API");
+                throw new Error('Пустой ответ от API');
             }
 
-        } catch (e) {
-            console.error('❌ Ошибка:', e);
+        } catch (error) {
+            console.error('❌ Ошибка:', error);
             
-            if (thinkingMsgId && window.removeMessageFromChat) {
+            // Убираем индикатор
+            if (window.removeMessageFromChat) {
                 window.removeMessageFromChat(thinkingMsgId);
             }
             
             if (window.addMessageToChat) {
-                let errorMessage = `❌ **Ошибка:** ${e.message}`;
+                let errorMsg = `❌ **Ошибка:** ${error.message}`;
                 
-                if (e.message.includes('API') || e.message.includes('ключ')) {
-                    errorMessage += "\n\n💡 **Что делать:**\n";
-                    errorMessage += "• Проверьте правильность API ключа\n";
-                    errorMessage += "• Убедитесь, что Generative Language API включен\n";
-                    
+                if (error.message.includes('API') || error.message.includes('key')) {
+                    errorMsg += '\n\n💡 Проверьте API ключ в настройках.';
                     if (window.showApiKeyModal) {
                         setTimeout(() => window.showApiKeyModal(), 1000);
                     }
                 }
                 
-                window.addMessageToChat(errorMessage, 'ai');
+                window.addMessageToChat(errorMsg, 'ai');
             }
         }
     }
-    
+
     buildPrompt(userInput, searchType) {
-        const basePrompt = `Ты - музыкальный эксперт. Запрос: "${userInput}"`;
+        const basePrompt = `Ты музыкальный эксперт. Запрос: "${userInput}"`;
         
-        switch(searchType) {
-            case 'melody':
-                return `${basePrompt}
-                
-Найди песни похожие на описанную мелодию. Дай список: 1. Название - Исполнитель (год). Кратко объясни почему похоже.`;
-            
-            case 'lyrics':
-                return `${basePrompt}
-                
-Найди песни с похожими строчками. Дай список: 1. Название - Исполнитель. Объясни сходство.`;
-            
-            case 'mood':
-                return `${basePrompt}
-                
-Подбери музыку для этого настроения. Дай список: 1. Название - Исполнитель (жанр). Объясни почему подходит.`;
-            
-            case 'describe':
-                return `${basePrompt}
-                
-Найди музыку подходящую под описание. Дай список: 1. Название - Исполнитель. Объясни связь.`;
-            
-            default:
-                return `${basePrompt}
-                
-Ответь как музыкальный эксперт. Если это поиск песни - предложи варианты. Если вопрос - дай развернутый ответ. Всегда указывай названия и исполнителей.`;
-        }
+        const prompts = {
+            melody: `${basePrompt}\n\nНайди песни похожие на эту мелодию. Дай список: 1. Название - Исполнитель. Объясни почему похоже.`,
+            lyrics: `${basePrompt}\n\nНайди песни с похожими строчками. Дай список: 1. Название - Исполнитель. Объясни сходство.`,
+            mood: `${basePrompt}\n\nПодбери музыку для этого настроения. Дай список: 1. Название - Исполнитель (жанр). Объясни почему подходит.`,
+            describe: `${basePrompt}\n\nНайди музыку под это описание. Дай список: 1. Название - Исполнитель. Объясни связь.`
+        };
+        
+        return prompts[searchType] || 
+            `${basePrompt}\n\nОтветь как музыкальный эксперт. Если это поиск песни - предложи варианты. Всегда указывай названия и исполнителей.`;
     }
     
-    // 🔥 ВАЖНО: Добавляем метод processQuery для совместимости с index.html
-    processQuery(userInput) {
-        console.log('📝 Обработка запроса через processQuery:', userInput.substring(0, 50) + '...');
-        // Используем processWithOpenRouter с текущим типом поиска или дефолтным
-        return this.processWithOpenRouter(userInput, window.currentSearchType || 'text');
-    }
-    
-    // 🔥 Также добавляем метод process для дополнительной совместимости
-    process(userInput) {
-        return this.processQuery(userInput);
-    }
-    
+    // Методы голосового ввода
     setupVoiceRecognition() {
         console.log('🎤 Голосовой ввод настроен');
-    } 
+    }
     
     startVoiceInput() {
         console.log('🎤 Начало голосового ввода');
-        alert('Голосовой ввод в разработке. Напишите запрос.');
+        alert('Голосовой ввод в разработке');
     }
     
     stopVoiceInput() {
@@ -275,7 +239,7 @@ class MusicAICore {
     }
     
     onVoiceInput(text) {
-        console.log('🎤 Голосовой ввод получен:', text);
+        console.log('🎤 Голосовой ввод:', text);
         if (text && window.addMessageToChat) {
             window.addMessageToChat(text, 'user');
             this.processQuery(text);
@@ -283,36 +247,54 @@ class MusicAICore {
     }
 }
 
-// Создаем и экспортируем экземпляр
-window.MusicAICore = MusicAICore;
+// 🔥 ВАЖНО: Создаем глобальный экземпляр и добавляем методы
+console.log('🛠️ Инициализация AI Core...');
 
-// Создаем глобальный экземпляр
-console.log('🛠️ Создаю глобальный экземпляр AI Core...');
-if (!window.aiCore) {
-    window.aiCore = new MusicAICore();
-    console.log('✅ Глобальный aiCore создан');
+// Функция инициализации AI Core
+function initializeAICore() {
+    if (!window.aiCore) {
+        window.aiCore = new MusicAICore();
+        console.log('✅ AI Core создан');
+    }
     
-    // 🔥 ВАЖНО: Добавляем отсутствующие методы для совместимости
+    // 🔥 ГАРАНТИРУЕМ, что методы существуют
     if (window.aiCore) {
-        // Убедимся, что все нужные методы есть
-        if (!window.aiCore.processQuery) {
+        // Если методы не были созданы в конструкторе, добавляем их
+        if (typeof window.aiCore.processQuery !== 'function') {
             window.aiCore.processQuery = function(userInput) {
                 return this.processWithOpenRouter(userInput, window.currentSearchType || 'text');
             }.bind(window.aiCore);
             console.log('✅ Добавлен метод processQuery');
         }
         
-        if (!window.aiCore.process) {
+        if (typeof window.aiCore.process !== 'function') {
             window.aiCore.process = window.aiCore.processQuery;
             console.log('✅ Добавлен метод process');
         }
+        
+        if (typeof window.aiCore.processWithOpenRouter !== 'function') {
+            window.aiCore.processWithOpenRouter = function(userInput, searchType) {
+                console.log('⚠️ Метод processWithOpenRouter не найден');
+                return Promise.resolve();
+            };
+        }
     }
+    
+    return window.aiCore;
 }
 
-// Экспортируем метод для обновления ключей
-window.updateAICoreKeys = function() {
-    if (window.aiCore && window.aiCore.updateKeys) {
-        return window.aiCore.updateKeys();
-    }
-    return false;
-};
+// Экспортируем класс и функцию инициализации
+window.MusicAICore = MusicAICore;
+window.initializeAICore = initializeAICore;
+
+// 🔥 ВАЖНО: Инициализируем сразу, но также даем возможность повторной инициализации
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('📄 DOM загружен, инициализирую AI Core...');
+    setTimeout(() => {
+        initializeAICore();
+    }, 500);
+});
+
+// Также инициализируем при загрузке скрипта
+console.log('⚡ Немедленная инициализация AI Core...');
+initializeAICore();
