@@ -5,10 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script>
         // Если keys.js нет, создаем пустые переменные, чтобы сайт не умер
-        window.GOOGLE_API_KEYS = []; 
-        window.CONFIG = { GOOGLE_AI: { API_KEYS: [] } };
-        console.log("🚑 Защита от отсутствия ключей включена");
-    </script>
+if (!window.API_CONFIG) window.API_CONFIG = { googleKeys: [] };
+if (!window.CONFIG) window.CONFIG = { GOOGLE_AI: { API_KEYS: [] } };
+console.log("🚑 Защита от отсутствия ключей включена");
+</script>
+
     
     <script src="keys.js?v=2.0" onerror="console.log('GitHub режим: keys.js пропущен')"></script>
     <script src="config.js?v=2.0"></script>
@@ -2195,4 +2196,5 @@
 </style>
 </body>
 </html>
+
 
