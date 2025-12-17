@@ -1738,62 +1738,54 @@
     // ==================== ОСНОВНОЙ ИИ ЧАТ ====================
     
     async function sendMessageToNeural() {
-        const input = document.getElementById('chatInput');
-        const message = input.value.trim();
-        
-        if (!message) return;
-        
-        // Добавляем сообщение пользователя
-        addMessageToChat(message, 'user');
-        input.value = '';
-        
-        // Проверяем наличие ключа
-        if (!checkApiKeyAvailable()) {
-            addMessageToChat("❌ **API ключ не найден**\n\nПожалуйста, введите ключ Google AI API в появившемся окне.", 'ai');
-            showApiKeyModal();
-            return;
-        }
-        
-        // Используем ai-core для всех запросов
-        if (window.aiCore) {
-            showTypingIndicator(true);
-            try {
-                // Проверяем, что у ai-core есть ключи
-                if (!window.aiCore.apiKeys || window.aiCore.apiKeys.length === 0) {
-                    // Обновляем ключи
-                    checkApiKeyAvailable();
-                    
-                    if (!window.aiCore.apiKeys || window.aiCore.apiKeys.length === 0) {
-                        throw new Error('API ключи не найдены');
-                    }
-                }
-                
-                // Используем processQuery вместо processWithOpenRouter для совместимости
-                await window.aiCore.processQuery(message);
-                
-            } catch (error) {
-                console.error('Ошибка ai-core:', error);
-                
-                // Если ошибка связана с ключами, показываем модальное окно
-                if (error.message.includes('API ключ') || 
-                    error.message.includes('Ключи не найдены') ||
-                    (error.message && error.message.includes('ключ'))) {
-                    
-                    addMessageToChat("❌ **Проблема с API ключом**\n\nВозможно, ключ неверный или истек срок действия. Пожалуйста, проверьте и введите ключ снова.", 'ai');
-                    showApiKeyModal();
-                } else {
-                    addMessageToChat(`❌ **Ошибка ИИ:**\n\n${error.message || 'Неизвестная ошибка'}\n\nПопробуйте еще раз или проверьте подключение к интернету.`, 'ai');
-                }
-            } finally {
-                showTypingIndicator(false);
-                scrollChatToBottom();
-            }
-            return;
-        }
-        
-        // Fallback на старый метод, если ai-core не загружен
-        addMessageToChat("⚠️ **AI Core не загружен**\n\nПожалуйста, обновите страницу или проверьте консоль браузера.", 'ai');
+    const input = document.getElementById('chatInput');
+    const message = input.value.trim();
+    
+    if (!message) return;
+    
+    // Добавляем сообщение пользователя
+    addMessageToChat(message, 'user');
+    input.value = '';
+    
+    // 🔥 ПРОСТАЯ ПРОВЕРКА И ИСПРАВЛЕНИЕ
+    if (!window.aiCore) {
+        // Пробуем инициализировать если есть функции
+        if (window.getAICore) window.aiCore = window.getAICore();
+        else if (window.ensureAICore) window.aiCore = window.ensureAICore();
     }
+    
+    // 🔥 Проверяем методы
+    if (!window.aiCore) {
+        addMessageToChat('❌ AI не загружен. Обновите страницу.', 'ai');
+        return;
+    }
+    
+    // 🔥 Убеждаемся что есть нужные методы
+    if (!window.aiCore.processWithOpenRouter && window.aiCore.processQuery) {
+        // Используем processQuery если processWithOpenRouter нет
+        window.aiCore.processWithOpenRouter = function(userInput, searchType) {
+            return this.processQuery(userInput);
+        };
+    }
+    
+    showTypingIndicator(true);
+    try {
+        // 🔥 Безопасный вызов
+        if (window.aiCore.processWithOpenRouter) {
+            await window.aiCore.processWithOpenRouter(message, currentSearchType || 'text');
+        } else if (window.aiCore.processQuery) {
+            await window.aiCore.processQuery(message);
+        } else {
+            throw new Error('AI методы не найдены');
+        }
+    } catch (error) {
+        console.error('Ошибка:', error);
+        // AI Core обычно сам показывает ошибки, поэтому здесь можно ничего не делать
+    } finally {
+        showTypingIndicator(false);
+        scrollChatToBottom();
+    }
+}
     
     // ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
     
@@ -2203,3 +2195,4 @@
 </style>
 </body>
 </html>
+
