@@ -12,17 +12,29 @@ class MusicAICore {
     }
 
     loadKeys() {
+        // 1. Сначала создаем пустой список, чтобы не было ошибок
+        this.groqKeys = [];
+
         try {
-            // Ключи из keys.js
-            if (window.API_CONFIG?.groqKeys) {
+            // 2. БЕЗОПАСНАЯ ПРОВЕРКА: Если keys.js есть - берем ключи оттуда
+            // (Проверяем typeof, чтобы на GitHub не вылетала ошибка)
+            if (typeof window.API_CONFIG !== 'undefined' && window.API_CONFIG.groqKeys) {
                 this.groqKeys = [...window.API_CONFIG.groqKeys];
             }
-            // Ключ из localStorage
+        } catch(e) {
+            console.log('⚠️ keys.js не найден, работаем только с сохраненным ключом');
+        }
+
+        try {
+            // 3. Достаем ключ из памяти браузера (тот, что ты введешь)
             const saved = localStorage.getItem('groq_key');
-            if (saved && saved.startsWith('gsk_') && !this.groqKeys.includes(saved)) {
-                this.groqKeys.unshift(saved);
+            if (saved && saved.startsWith('gsk_')) {
+                // Если такого ключа еще нет в списке - ставим его ПЕРВЫМ
+                if (!this.groqKeys.includes(saved)) {
+                    this.groqKeys.unshift(saved);
+                }
             }
-            console.log(`🔑 Groq ключей: ${this.groqKeys.length}`);
+            console.log(`🔑 Groq ключей доступно: ${this.groqKeys.length}`);
         } catch(e) {}
     }
 
