@@ -1503,25 +1503,57 @@ window.addEventListener('load', async function() {
     let currentSearchType = null;
     let isVoiceListening = false;
     
-    // НАСТРОЙКИ API (Google Gemini)
+        // НАСТРОЙКИ API (Google Gemini)
     // Несколько ключей для ротации
     // Берем ключи из конфига (keys.js) - ПРИОРИТЕТ, затем localStorage
-    let GOOGLE_API_KEYS = (window.CONFIG && window.CONFIG.GOOGLE_AI && window.CONFIG.GOOGLE_AI.API_KEYS) 
-        ? [...window.CONFIG.GOOGLE_AI.API_KEYS] 
-        : [];
-    
-    // Очищаем sessionStorage - ключ нужно будет ввести заново при каждой перезагрузке
-    sessionStorage.removeItem('music_ai_google_key');
-    // Ключи из sessionStorage не добавляются - всегда требуется ввод ключа
-    
+    let GOOGLE_API_KEYS = [];
     let currentApiKeyIndex = 0;
-    const GOOGLE_API_KEY = GOOGLE_API_KEYS[currentApiKeyIndex];
+    let GOOGLE_API_KEY = null;
+    let MODEL_NAME = 'gemini-1.5-flash';
+    let API_URL = null;
     
-    console.log('🔑 Загружено ключей:', GOOGLE_API_KEYS.length, 'из', 
-               (window.CONFIG && window.CONFIG.GOOGLE_AI && window.CONFIG.GOOGLE_AI.API_KEYS?.length > 0) ? 'keys.js + localStorage' : 'localStorage');
-    // Используем бесплатную модель Gemini Flash
-    const MODEL_NAME = 'gemini-1.5-flash'; // Бесплатная модель
-    const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${GOOGLE_API_KEY}`;
+    // Функция для инициализации ключей
+    function initializeApiKeys() {
+        GOOGLE_API_KEYS = (window.CONFIG && window.CONFIG.GOOGLE_AI && window.CONFIG.GOOGLE_AI.API_KEYS) 
+            ? [...window.CONFIG.GOOGLE_AI.API_KEYS] 
+            : [];
+        
+        // Очищаем sessionStorage - ключ нужно будет ввести заново при каждой перезагрузке
+        sessionStorage.removeItem('music_ai_google_key');
+        
+        // Также проверяем window.currentApiKey (из модального окна)
+        if (window.currentApiKey && typeof window.currentApiKey === 'string' && window.currentApiKey.length > 20) {
+            if (!GOOGLE_API_KEYS.includes(window.currentApiKey)) {
+                GOOGLE_API_KEYS.unshift(window.currentApiKey); // Добавляем в начало с наивысшим приоритетом
+            }
+        }
+        
+        // Устанавливаем текущий ключ если есть
+        if (GOOGLE_API_KEYS.length > 0) {
+            currentApiKeyIndex = 0;
+            GOOGLE_API_KEY = GOOGLE_API_KEYS[currentApiKeyIndex];
+            API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${GOOGLE_API_KEY}`;
+        }
+        
+        console.log('🔑 Загружено ключей:', GOOGLE_API_KEYS.length, 'из', 
+                   (window.CONFIG && window.CONFIG.GOOGLE_AI && window.CONFIG.GOOGLE_AI.API_KEYS?.length > 0) ? 'keys.js + localStorage' : 'localStorage');
+        console.log('🔑 Google AI API ключ установлен:', GOOGLE_API_KEY ? 'Да' : 'Нет');
+        console.log('📡 Используется модель:', MODEL_NAME);
+        console.log('🔗 API URL:', API_URL ? API_URL.replace(GOOGLE_API_KEY, 'KEY_HIDDEN') : 'Не установлен');
+        
+        return GOOGLE_API_KEY !== null;
+    }
+    
+    // Функция для получения следующего ключа
+    function getNextApiKey() {
+        if (GOOGLE_API_KEYS.length === 0) return null;
+        
+        currentApiKeyIndex = (currentApiKeyIndex + 1) % GOOGLE_API_KEYS.length;
+        GOOGLE_API_KEY = GOOGLE_API_KEYS[currentApiKeyIndex];
+        API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${GOOGLE_API_KEY}`;
+        
+        return GOOGLE_API_KEY;
+    }
     
     // Функция для получения следующего ключа
     function getNextApiKey() {
@@ -3377,6 +3409,7 @@ ${musicBrainzResults && musicBrainzResults.length > 0 ? `\n🎯 НАЙДЕНО �
 </script>
 </body>
 </html>
+
 
 
 
