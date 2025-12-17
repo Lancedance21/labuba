@@ -1,139 +1,134 @@
-// ai-core.js - GOOGLE GEMINI (ВЕРСИЯ 8.0 - FIXED KEY LOADING)
-console.log('🚀 AI Core загружен (версия 8.0 - Fixed Key Loading)');
+// ai-core.js - УПРОЩЕННАЯ ВЕРСИЯ 9.0
+console.log('🚀 AI Core загружен (версия 9.0)');
 
 class MusicAICore {
     constructor() {
+        console.log("🔄 Инициализация AI Core...");
         this.apiKeys = [];
         this.currentKeyIndex = 0;
         this.baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
         this.modelName = 'gemini-1.5-flash';
         
-        // Ждем немного, чтобы все скрипты загрузились, потом инициализируем
-        setTimeout(() => this.loadKeys(), 100);
+        // Собираем все ключи
+        this.collectApiKeys();
+        
+        // Ждем и показываем модальное окно если ключей нет
+        setTimeout(() => {
+            if (this.apiKeys.length === 0) {
+                console.log("⚠️ Ключей нет, показываю модальное окно");
+                this.showApiKeyModal();
+            } else {
+                console.log(`✅ Найдено ключей: ${this.apiKeys.length}`);
+            }
+        }, 500);
     }
-
-    loadKeys() {
-        console.log("🔍 Загрузка ключей...");
+    
+    collectApiKeys() {
+        console.log("🔍 Сбор ключей из всех источников...");
         
-        const allKeys = [];
-        
-        // 1. Из window.API_CONFIG (keys.js)
+        // 1. Из keys.js (через API_CONFIG)
         if (window.API_CONFIG?.googleKeys?.length > 0) {
-            console.log("✅ Нашел ключи в API_CONFIG:", window.API_CONFIG.googleKeys.length);
-            allKeys.push(...window.API_CONFIG.googleKeys);
+            console.log("✅ Ключи из keys.js:", window.API_CONFIG.googleKeys.length);
+            this.apiKeys.push(...window.API_CONFIG.googleKeys);
         }
         
-        // 2. Из window.CONFIG
+        // 2. Из config.js
         if (window.CONFIG?.GOOGLE_AI?.API_KEYS?.length > 0) {
-            console.log("✅ Нашел ключи в CONFIG:", window.CONFIG.GOOGLE_AI.API_KEYS.length);
-            allKeys.push(...window.CONFIG.GOOGLE_AI.API_KEYS);
+            console.log("✅ Ключи из config.js:", window.CONFIG.GOOGLE_AI.API_KEYS.length);
+            this.apiKeys.push(...window.CONFIG.GOOGLE_AI.API_KEYS);
         }
         
-        // 3. Из window.currentApiKey (введенный в модальном окне)
-        if (window.currentApiKey && typeof window.currentApiKey === 'string' && window.currentApiKey.length > 20) {
-            console.log("✅ Нашел ключ в currentApiKey");
-            allKeys.push(window.currentApiKey);
+        // 3. Из localStorage (только для этой сессии)
+        try {
+            const savedKey = localStorage.getItem('music_ai_current_key');
+            if (savedKey && savedKey.length > 30) {
+                console.log("✅ Ключ из localStorage");
+                this.apiKeys.push(savedKey);
+            }
+        } catch(e) {
+            console.warn("❌ Ошибка чтения localStorage:", e);
         }
         
-        // 4. Из localStorage (только если других нет)
-        if (allKeys.length === 0) {
-            try {
-                const savedKey = localStorage.getItem('music_ai_google_key');
-                if (savedKey && savedKey.length > 20) {
-                    console.log("✅ Нашел ключ в localStorage");
-                    allKeys.push(savedKey);
-                }
-            } catch(e) {}
-        }
+        // Убираем дубликаты
+        this.apiKeys = [...new Set(this.apiKeys.filter(k => k && k.trim().length > 30))];
         
-        // Убираем дубликаты и пустые значения
-        this.apiKeys = [...new Set(allKeys.filter(k => k && k.trim().length > 20))];
-        
-        console.log(`📦 Всего ключей загружено: ${this.apiKeys.length}`);
-        
-        if (this.apiKeys.length > 0) {
-            console.log("🔑 Первый ключ:", this.apiKeys[0].substring(0, 20) + "...");
+        console.log(`📦 Всего уникальных ключей: ${this.apiKeys.length}`);
+    }
+    
+    showApiKeyModal() {
+        const modal = document.getElementById('settingsModal');
+        if (modal) {
+            modal.classList.remove('hidden');
+            modal.style.display = 'flex';
             
-            // После загрузки ключей, проверяем доступные модели
-            setTimeout(() => this.initAutoDiscovery(), 300);
-        } else {
-            console.error("❌ Нет доступных ключей API!");
-            this.showApiKeyError();
+            // Фокус на поле ввода
+            setTimeout(() => {
+                const input = document.getElementById('googleApiKeyInput');
+                if (input) {
+                    input.focus();
+                    input.value = '';
+                }
+            }, 300);
         }
     }
-
+    
+    saveApiKey(key) {
+        if (!key || key.length < 30) {
+            alert("❌ Неправильный ключ API");
+            return false;
+        }
+        
+        try {
+            // Сохраняем в localStorage
+            localStorage.setItem('music_ai_current_key', key);
+            
+            // Добавляем в список ключей
+            if (!this.apiKeys.includes(key)) {
+                this.apiKeys.push(key);
+            }
+            
+            // Закрываем модальное окно
+            const modal = document.getElementById('settingsModal');
+            if (modal) {
+                modal.classList.add('hidden');
+                modal.style.display = 'none';
+            }
+            
+            console.log("✅ Ключ сохранен");
+            return true;
+        } catch(e) {
+            console.error("Ошибка сохранения ключа:", e);
+            return false;
+        }
+    }
+    
     getCurrentKey() {
         if (this.apiKeys.length === 0) {
-            console.error("Нет доступных ключей!");
+            this.showApiKeyModal();
             return null;
         }
         return this.apiKeys[this.currentKeyIndex];
     }
-
-    showApiKeyError() {
-        if (window.addMessageToChat) {
-            window.addMessageToChat(
-                "🔑 **Требуется API ключ Google AI**\n\n" +
-                "1. Нажмите на кнопку микрофона в поле ввода\n" +
-                "2. Введите ваш Google AI API ключ\n" +
-                "3. Ключ сохранится локально\n\n" +
-                "📌 Получить ключ можно бесплатно: https://aistudio.google.com/app/apikey",
-                'ai'
-            );
-        }
-    }
-
-    async initAutoDiscovery() {
-        const apiKey = this.getCurrentKey();
-        if (!apiKey) return;
-        
-        try {
-            const response = await fetch(`${this.baseUrl}/models?key=${apiKey}`);
-            if (!response.ok) {
-                console.error("❌ Ошибка проверки ключа:", response.status);
-                return;
-            }
-            
-            const data = await response.json();
-            if (data.models) {
-                const validModels = data.models
-                    .filter(m => m.supportedGenerationMethods?.includes('generateContent'))
-                    .map(m => m.name.replace('models/', ''));
-                
-                console.log("✅ Доступные модели:", validModels);
-                
-                const priority = ['gemini-1.5-flash', 'gemini-1.5-flash-001', 'gemini-1.0-pro', 'gemini-pro'];
-                const selected = validModels.find(m => priority.includes(m)) || validModels[0];
-                
-                if (selected) {
-                    this.modelName = selected;
-                    console.log(`🎉 Использую модель: ${this.modelName}`);
-                }
-            }
-        } catch (e) {
-            console.warn("⚠️ Не удалось получить список моделей:", e.message);
-        }
-    }
-
+    
     async processWithOpenRouter(userInput, searchType = 'text') {
         const apiKey = this.getCurrentKey();
         if (!apiKey) {
-            this.showApiKeyError();
+            this.showApiKeyModal();
             return;
         }
-
-        // Показываем сообщение "Думаю..."
+        
+        // Показываем "Думаю..."
         const thinkingMsgId = 'thinking_' + Date.now();
         if (window.addMessageToChat) {
             window.addMessageToChat('🤔 Думаю...', 'ai', thinkingMsgId);
         }
-
-        const prompt = `Ты музыкальный эксперт. Посоветуй музыку по запросу: "${userInput}". 
-        Дай список песен в формате: Название - Исполнитель (Год) | Жанр`;
+        
+        const prompt = `Ты музыкальный эксперт. Помоги пользователю: "${userInput}". 
+        Давай рекомендации песен в формате: Название - Исполнитель (Год) | Жанр`;
         
         try {
             const url = `${this.baseUrl}/models/${this.modelName}:generateContent?key=${apiKey}`;
-            console.log(`📡 Отправка запроса к ${this.modelName}...`);
+            console.log(`📡 Отправка запроса: ${url.substring(0, 100)}...`);
             
             const response = await fetch(url, {
                 method: 'POST',
@@ -144,17 +139,15 @@ class MusicAICore {
                     }]
                 })
             });
-
+            
             if (!response.ok) {
-                const errData = await response.json().catch(() => ({}));
-                const errText = errData.error?.message || `HTTP ${response.status}`;
-                throw new Error(errText);
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
-
+            
             const data = await response.json();
             const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-            // Убираем сообщение "Думаю..."
+            
+            // Убираем "Думаю..."
             if (window.removeMessageFromChat) {
                 window.removeMessageFromChat(thinkingMsgId);
             }
@@ -164,67 +157,34 @@ class MusicAICore {
             } else {
                 throw new Error("Пустой ответ от API");
             }
-
-        } catch (e) {
-            console.error("❌ Ошибка API:", e);
             
-            // Убираем сообщение "Думаю..."
+        } catch (error) {
+            console.error("❌ Ошибка API:", error);
+            
+            // Убираем "Думаю..."
             if (window.removeMessageFromChat) {
                 window.removeMessageFromChat(thinkingMsgId);
             }
             
             if (window.addMessageToChat) {
-                let errorMsg = `❌ **Ошибка Google AI:**\n\n${e.message}\n\n`;
-                
-                if (e.message.includes('API key not valid')) {
-                    errorMsg += "🔑 **Проблема:** Ключ API недействителен.\n";
-                    errorMsg += "✅ **Решение:**\n";
-                    errorMsg += "• Проверьте правильность ключа\n";
-                    errorMsg += "• Убедитесь, что API включен: https://console.cloud.google.com/apis/api/generativelanguage.googleapis.com\n";
-                    errorMsg += "• Получите новый ключ: https://aistudio.google.com/app/apikey";
-                } else if (e.message.includes('quota')) {
-                    errorMsg += "⚠️ **Проблема:** Превышена квота запросов.\n";
-                    errorMsg += "✅ **Решение:**\n";
-                    errorMsg += "• Подождите 1-24 часа\n";
-                    errorMsg += "• Используйте другой API ключ";
-                } else {
-                    errorMsg += "🔧 **Проверьте:**\n";
-                    errorMsg += "• Подключение к интернету\n";
-                    errorMsg += "• Наличие ключа в настройках\n";
-                    errorMsg += "• Консоль Google Cloud для активации API";
-                }
-                
-                window.addMessageToChat(errorMsg, 'ai');
+                window.addMessageToChat(
+                    `❌ Ошибка: ${error.message}\n\n` +
+                    `💡 Проверьте:\n` +
+                    `1. Правильность API ключа\n` +
+                    `2. Подключение к интернету\n` +
+                    `3. Активацию Google AI API`,
+                    'ai'
+                );
             }
         }
     }
     
-    // Метод для обновления ключей извне
-    updateApiKeys() {
-        this.loadKeys();
-    }
-    
-    // Заглушки для совместимости
-    setupVoiceRecognition() {
-        console.log("🎤 Голосовой ввод инициализирован");
-    }
-    
+    // Методы для совместимости
+    setupVoiceRecognition() {}
     startVoiceInput() {
-        if (window.addMessageToChat) {
-            window.addMessageToChat(
-                "🎤 **Голосовой ввод**\n\n" +
-                "1. Нажмите кнопку микрофона\n" +
-                "2. Говорите четко\n" +
-                "3. Я переведу речь в текст",
-                'ai'
-            );
-        }
+        alert("🎤 Голосовой ввод временно отключен");
     }
-    
-    stopVoiceInput() {
-        console.log("🎤 Голосовой ввод остановлен");
-    }
-    
+    stopVoiceInput() {}
     onVoiceInput(text) {
         if (window.addMessageToChat) {
             window.addMessageToChat(text, 'user');
@@ -234,7 +194,6 @@ class MusicAICore {
 }
 
 // Создаем глобальный экземпляр
-window.MusicAICore = MusicAICore;
 if (!window.aiCore) {
     window.aiCore = new MusicAICore();
     console.log("✅ AI Core создан");
